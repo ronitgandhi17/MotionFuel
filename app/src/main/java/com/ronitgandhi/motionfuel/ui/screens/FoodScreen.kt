@@ -106,6 +106,15 @@ fun FoodScreen(
                 TextButton(onClick = { manualDialog = true }) { Icon(Icons.Rounded.Add, null); Text("Manual") }
             }
         }
+        if (results.isEmpty()) {
+            item {
+                Text(
+                    "Search for a food above or add one manually. Results come from Open Food Facts.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
         items(results, key = { it.providerId }) { food ->
             Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))) {
                 Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically) {

@@ -1,18 +1,9 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    function signedInAs(uid) {
-      return request.auth != null && request.auth.uid == uid;
-    }
-
-    match /users/{uid} {
-      allow read, create, update, delete: if signedInAs(uid);
-
-      match /{collection}/{document=**} {
-        allow read, write: if signedInAs(uid);
-      }
-    }
-
+    // MotionFuel never connects the Firebase client SDK. Every read and write flows through the
+    // Clerk-verified backend gateway using the Firebase Admin SDK, which bypasses these rules.
+    // Denying all direct client access satisfies NFR-10: untrusted clients cannot reach any data.
     match /{document=**} {
       allow read, write: if false;
     }

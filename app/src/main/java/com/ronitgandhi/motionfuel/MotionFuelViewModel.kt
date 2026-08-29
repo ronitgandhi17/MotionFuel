@@ -1,7 +1,13 @@
 package com.ronitgandhi.motionfuel
 
+import android.Manifest
+import android.annotation.SuppressLint
 import android.app.Application
+import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.location.Location
+import android.location.LocationManager
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -19,9 +25,9 @@ import com.ronitgandhi.motionfuel.domain.model.WeatherContext
 import com.ronitgandhi.motionfuel.domain.model.WorkoutStatus
 import com.ronitgandhi.motionfuel.domain.model.WorkoutSummary
 import com.ronitgandhi.motionfuel.domain.model.WorkoutType
-import com.ronitgandhi.motionfuel.service.DemoTracePlayer
 import com.ronitgandhi.motionfuel.service.WorkoutSessionController
 import com.ronitgandhi.motionfuel.service.WorkoutTrackingService
+import com.ronitgandhi.motionfuel.sync.SyncScheduler
 import java.util.Calendar
 import java.util.UUID
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -38,7 +44,6 @@ class MotionFuelViewModel(application: Application) : AndroidViewModel(applicati
     private val settingsRepository = app.settingsRepository
     private val api = app.apiClient
     private val insightEngine = AdaptiveInsightEngine()
-    private val demoPlayer = DemoTracePlayer()
     private val todayRange = localDayRange()
     private var workoutStartedAtMillis = 0L
 
@@ -66,14 +71,13 @@ class MotionFuelViewModel(application: Application) : AndroidViewModel(applicati
             NutritionTotals(),
         )
 
-    private val mutableWeather = MutableStateFlow(
-        WeatherContext(temperatureC = 19.0, humidityPercent = 61, windSpeedKph = 13.0, isRaining = false, sourceAgeMinutes = 0),
-    )
+    // Weather is null until a real device location produces a live reading; nothing is fabricated.
+    private val mutableWeather = MutableStateFlow<WeatherContext?>(null)
     val weather = mutableWeather.asStateFlow()
-    private val mutableWeatherStatus = MutableStateFlow("Demo-safe cached context")
+    private val mutableWeatherStatus = MutableStateFlow("Enable location for live weather")
     val weatherStatus = mutableWeatherStatus.asStateFlow()
 
-    private val mutableFoodResults = MutableStateFlow(sampleFoods())
+    private val mutableFoodResults = MutableStateFlow<List<FoodSearchResult>>(emptyList())
     val foodResults = mutableFoodResults.asStateFlow()
     private val mutableFoodSearchStatus = MutableStateFlow<String?>(null)
     val foodSearchStatus = mutableFoodSearchStatus.asStateFlow()
@@ -92,7 +96,7 @@ class MotionFuelViewModel(application: Application) : AndroidViewModel(applicati
         val effort = (
             (workout.elapsedSeconds / 2_700.0) * 0.25 +
                 (workout.elevationGainMeters / 90.0) * 0.25 +
-                (if (weather.temperatureC >= 28) 0.20 else 0.0) +
+                (if ((weather?.temperatureC ?: 0.0) >= 28) 0.20 else 0.0) +
                 (if (workout.activity.type == ActivityType.RUNNING) 0.30 else 0.12)
             ).coerceIn(0.0, 1.0)
         insightEngine.evaluate(
@@ -118,23 +122,31 @@ class MotionFuelViewModel(application: Application) : AndroidViewModel(applicati
 
     init {
         refreshWeather()
+        // Pulls any account data saved on other devices and drains local pending rows.
+        SyncScheduler.enqueue(app)
     }
 
     fun refreshWeather() {
         viewModelScope.launch {
-            mutableWeatherStatus.value = "Updating Melbourne conditions…"
-            api.currentWeather(-37.8136, 144.9631)
+            val location = lastKnownLocation()
+            if (location == null) {
+                mutableWeather.value = null
+                mutableWeatherStatus.value = "Enable location for live weather"
+                return@launch
+            }
+            mutableWeatherStatus.value = "Updating local conditions…"
+            api.currentWeather(location.latitude, location.longitude)
                 .onSuccess {
                     mutableWeather.value = it
                     mutableWeatherStatus.value = "Live context"
                 }
-                .onFailure { mutableWeatherStatus.value = "Cached context • offline safe" }
+                .onFailure { mutableWeatherStatus.value = "Weather unavailable • offline" }
         }
     }
 
     fun searchFoods(query: String) {
         if (query.isBlank()) {
-            mutableFoodResults.value = sampleFoods()
+            mutableFoodResults.value = emptyList()
             mutableFoodSearchStatus.value = null
             return
         }
@@ -142,12 +154,12 @@ class MotionFuelViewModel(application: Application) : AndroidViewModel(applicati
             mutableFoodSearchStatus.value = "Searching Open Food Facts…"
             api.searchFoods(query)
                 .onSuccess { results ->
-                    mutableFoodResults.value = results.ifEmpty { sampleFoods().filter { it.name.contains(query, ignoreCase = true) } }
-                    mutableFoodSearchStatus.value = if (results.isEmpty()) "No online matches • showing local examples" else null
+                    mutableFoodResults.value = results
+                    mutableFoodSearchStatus.value = if (results.isEmpty()) "No matches found for \"$query\"." else null
                 }
                 .onFailure {
-                    mutableFoodResults.value = sampleFoods().filter { it.name.contains(query, ignoreCase = true) }
-                    mutableFoodSearchStatus.value = "Offline • local examples"
+                    mutableFoodResults.value = emptyList()
+                    mutableFoodSearchStatus.value = "Search unavailable • check your connection."
                 }
         }
     }
@@ -164,9 +176,11 @@ class MotionFuelViewModel(application: Application) : AndroidViewModel(applicati
                     fatG = food.fatG,
                     mealType = mealType,
                     consumedAtMillis = System.currentTimeMillis(),
-                    createdOffline = mutableFoodSearchStatus.value?.startsWith("Offline") == true,
+                    createdOffline = mutableFoodSearchStatus.value?.contains("unavailable") == true,
                 ),
             )
+            // Queues the new nutrition row for background upload to the account cloud.
+            SyncScheduler.enqueue(app)
         }
     }
 
@@ -184,16 +198,8 @@ class MotionFuelViewModel(application: Application) : AndroidViewModel(applicati
         )
     }
 
-    fun startDemo(type: WorkoutType) {
-        workoutStartedAtMillis = System.currentTimeMillis()
-        mutableWeather.value = WeatherContext(temperatureC = 30.0, humidityPercent = 48, windSpeedKph = 11.0, isRaining = false)
-        mutableWeatherStatus.value = "Assessor demo context • elevated heat"
-        demoPlayer.start(viewModelScope, type, settings.value.weightKg)
-    }
-
     fun startReal(type: WorkoutType) {
         workoutStartedAtMillis = System.currentTimeMillis()
-        demoPlayer.stop(reset = true)
         val intent = Intent(getApplication(), WorkoutTrackingService::class.java).apply {
             action = WorkoutTrackingService.ACTION_START
             putExtra(WorkoutTrackingService.EXTRA_TYPE, type.name)
@@ -204,22 +210,16 @@ class MotionFuelViewModel(application: Application) : AndroidViewModel(applicati
 
     fun pauseOrResumeWorkout() {
         val current = telemetry.value
-        if (current.isDemo) {
-            if (current.status == WorkoutStatus.PAUSED) demoPlayer.resume() else demoPlayer.pause()
-        } else {
-            val action = if (current.status == WorkoutStatus.PAUSED) WorkoutTrackingService.ACTION_RESUME else WorkoutTrackingService.ACTION_PAUSE
-            getApplication<Application>().startService(Intent(getApplication(), WorkoutTrackingService::class.java).setAction(action))
-        }
+        val action = if (current.status == WorkoutStatus.PAUSED) WorkoutTrackingService.ACTION_RESUME else WorkoutTrackingService.ACTION_PAUSE
+        getApplication<Application>().startService(Intent(getApplication(), WorkoutTrackingService::class.java).setAction(action))
     }
 
     fun finishWorkout() {
         val snapshot = telemetry.value
         if (snapshot.status !in setOf(WorkoutStatus.ACTIVE, WorkoutStatus.PAUSED)) return
-        if (snapshot.isDemo) demoPlayer.finish() else {
-            getApplication<Application>().startService(
-                Intent(getApplication(), WorkoutTrackingService::class.java).setAction(WorkoutTrackingService.ACTION_STOP),
-            )
-        }
+        getApplication<Application>().startService(
+            Intent(getApplication(), WorkoutTrackingService::class.java).setAction(WorkoutTrackingService.ACTION_STOP),
+        )
         viewModelScope.launch {
             repository.saveWorkout(
                 WorkoutSummary(
@@ -237,11 +237,12 @@ class MotionFuelViewModel(application: Application) : AndroidViewModel(applicati
                     route = snapshot.route,
                 ),
             )
+            // Queues the finished workout for background upload to the account cloud.
+            SyncScheduler.enqueue(app)
         }
     }
 
     fun dismissCompletedWorkout() {
-        demoPlayer.stop(reset = true)
         WorkoutSessionController.reset()
     }
 
@@ -249,6 +250,22 @@ class MotionFuelViewModel(application: Application) : AndroidViewModel(applicati
     fun setRouteBackup(value: Boolean) = viewModelScope.launch { settingsRepository.setRouteBackup(value) }
     fun setDarkTheme(value: Boolean) = viewModelScope.launch { settingsRepository.setDarkTheme(value) }
     fun deleteAllLocalData() = viewModelScope.launch { repository.deleteAllLocalData() }
+
+    // Reads the best available last-known device location for weather, or null without permission.
+    @SuppressLint("MissingPermission")
+    private fun lastKnownLocation(): Location? {
+        val context = getApplication<Application>()
+        val fineGranted = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+        val coarseGranted = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
+        if (!fineGranted && !coarseGranted) return null
+        val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as? LocationManager ?: return null
+        var best: Location? = null
+        for (provider in locationManager.getProviders(true)) {
+            val candidate = runCatching { locationManager.getLastKnownLocation(provider) }.getOrNull() ?: continue
+            if (best == null || candidate.accuracy < best.accuracy) best = candidate
+        }
+        return best
+    }
 
     private fun distinctActiveDays(history: List<WorkoutSummary>, daysAgo: IntRange): Int {
         val now = Calendar.getInstance()
@@ -268,10 +285,4 @@ class MotionFuelViewModel(application: Application) : AndroidViewModel(applicati
         }.timeInMillis
         return start to start + 86_400_000L
     }
-
-    private fun sampleFoods() = listOf(
-        FoodSearchResult("local-banana", "Banana", servingLabel = "1 medium", caloriesKcal = 105.0, proteinG = 1.3, carbohydratesG = 27.0, fatG = 0.4),
-        FoodSearchResult("local-yoghurt", "Greek yoghurt", servingLabel = "170 g", caloriesKcal = 146.0, proteinG = 17.0, carbohydratesG = 8.0, fatG = 4.0),
-        FoodSearchResult("local-paneer", "Paneer tikka", servingLabel = "1 bowl", caloriesKcal = 310.0, proteinG = 21.0, carbohydratesG = 13.0, fatG = 20.0),
-    )
 }

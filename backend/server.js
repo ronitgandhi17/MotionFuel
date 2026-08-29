@@ -1,6 +1,8 @@
 import { clerkMiddleware, getAuth } from "@clerk/express";
 import express from "express";
 import Stripe from "stripe";
+import { applicationDefault, cert, getApps, initializeApp } from "firebase-admin/app";
+import { FieldValue, getFirestore } from "firebase-admin/firestore";
 
 const requiredEnvironment = [
   "CLERK_PUBLISHABLE_KEY",
@@ -17,6 +19,44 @@ if (missingEnvironment.length > 0) {
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 const app = express();
+
+// Lazily initialises the Firebase Admin SDK so billing keeps working even without Firestore configured.
+let firestoreInstance;
+let firestoreInitialised = false;
+function getFirestoreOrNull() {
+  if (firestoreInitialised) return firestoreInstance;
+  firestoreInitialised = true;
+  try {
+    if (getApps().length === 0) {
+      const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT;
+      if (serviceAccountJson) {
+        // Preferred: a full service-account JSON string kept only in the server environment.
+        initializeApp({ credential: cert(JSON.parse(serviceAccountJson)) });
+      } else if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
+        // Fallback: Application Default Credentials referenced by the standard Google env var.
+        initializeApp({ credential: applicationDefault() });
+      } else {
+        firestoreInstance = null;
+        return null;
+      }
+    }
+    firestoreInstance = getFirestore();
+  } catch (error) {
+    console.error("Firebase Admin initialisation failed:", error.message);
+    firestoreInstance = null;
+  }
+  return firestoreInstance;
+}
+
+// Rejects sync requests with 503 until a Firestore service account is configured on this server.
+function requireFirestore(request, response, next) {
+  const database = getFirestoreOrNull();
+  if (!database) {
+    return response.status(503).json({ error: "Cloud sync is not configured on this server." });
+  }
+  request.firestore = database;
+  return next();
+}
 
 // Stripe signature verification requires the exact raw request body.
 app.post("/stripe/webhook", express.raw({ type: "application/json" }), (request, response) => {
@@ -154,6 +194,133 @@ app.post("/billing/portal", requireClerkUser, async (request, response, next) =>
       return_url: process.env.MEMBERSHIP_RETURN_URL,
     });
     return response.json({ url: session.url });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+// Clamps a numeric field into a safe range, ignoring client values that are missing or malformed.
+function num(value, min, max, fallback = 0) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.min(max, Math.max(min, parsed));
+}
+
+// Returns a length-capped string, or an empty string when the client value is not a string.
+function str(value, maxLength = 200) {
+  return typeof value === "string" ? value.slice(0, maxLength) : "";
+}
+
+const WORKOUT_TYPES = new Set(["WALK", "RUN"]);
+const ACTIVITY_TYPES = new Set(["STATIONARY", "WALKING", "RUNNING", "UNKNOWN"]);
+const MEAL_TYPES = new Set(["BREAKFAST", "LUNCH", "DINNER", "SNACK"]);
+
+// Rebuilds a workout document from client input, forcing ownership to the verified Clerk user.
+function sanitizeWorkout(raw, uid) {
+  const id = str(raw?.id, 128);
+  if (!id) return null;
+  const route = Array.isArray(raw?.route)
+    ? raw.route.slice(0, 5000).map((point) => ({
+        lat: num(point?.lat, -90, 90),
+        lon: num(point?.lon, -180, 180),
+        alt: point?.alt == null ? null : num(point.alt, -1000, 12000),
+        accuracy: num(point?.accuracy, 0, 10000, 5),
+        time: num(point?.time, 0, Number.MAX_SAFE_INTEGER),
+      }))
+    : [];
+  return {
+    id,
+    type: WORKOUT_TYPES.has(raw?.type) ? raw.type : "RUN",
+    startedAtMillis: num(raw?.startedAtMillis, 0, Number.MAX_SAFE_INTEGER),
+    durationSeconds: num(raw?.durationSeconds, 0, 604800),
+    distanceMeters: num(raw?.distanceMeters, 0, 1000000),
+    averagePaceSecPerKm: raw?.averagePaceSecPerKm == null ? null : num(raw.averagePaceSecPerKm, 0, 100000),
+    steps: num(raw?.steps, 0, 10000000),
+    elevationGainMeters: num(raw?.elevationGainMeters, 0, 100000),
+    caloriesKcal: num(raw?.caloriesKcal, 0, 100000),
+    dominantActivity: ACTIVITY_TYPES.has(raw?.dominantActivity) ? raw.dominantActivity : "UNKNOWN",
+    rejectedGpsPoints: num(raw?.rejectedGpsPoints, 0, 1000000),
+    route,
+    ownerId: uid,
+    updatedAt: FieldValue.serverTimestamp(),
+  };
+}
+
+// Rebuilds a nutrition document from client input, forcing ownership to the verified Clerk user.
+function sanitizeNutrition(raw, uid) {
+  const id = str(raw?.id, 128);
+  if (!id) return null;
+  return {
+    id,
+    name: str(raw?.name, 200) || "Food",
+    caloriesKcal: num(raw?.caloriesKcal, 0, 100000),
+    proteinG: num(raw?.proteinG, 0, 100000),
+    carbohydratesG: num(raw?.carbohydratesG, 0, 100000),
+    fatG: num(raw?.fatG, 0, 100000),
+    mealType: MEAL_TYPES.has(raw?.mealType) ? raw.mealType : "SNACK",
+    consumedAtMillis: num(raw?.consumedAtMillis, 0, Number.MAX_SAFE_INTEGER),
+    createdOffline: Boolean(raw?.createdOffline),
+    ownerId: uid,
+    updatedAt: FieldValue.serverTimestamp(),
+  };
+}
+
+// Removes server-internal fields before returning documents to the Android client.
+function stripInternal(document) {
+  const { ownerId, updatedAt, ...rest } = document;
+  return rest;
+}
+
+// Commits writes in chunks so a large sync stays within Firestore's 500-operation batch limit.
+async function commitInChunks(database, entries) {
+  for (let index = 0; index < entries.length; index += 450) {
+    const batch = database.batch();
+    for (const entry of entries.slice(index, index + 450)) {
+      batch.set(entry.ref, entry.data, { merge: true });
+    }
+    await batch.commit();
+  }
+}
+
+// Persists the signed-in user's workouts and nutrition entries to their private Firestore scope.
+app.post("/sync/push", requireClerkUser, requireFirestore, async (request, response, next) => {
+  try {
+    const uid = request.clerkUserId;
+    const database = request.firestore;
+    const userDocument = database.collection("users").doc(uid);
+    const rawWorkouts = Array.isArray(request.body?.workouts) ? request.body.workouts : [];
+    const rawNutrition = Array.isArray(request.body?.nutritionEntries) ? request.body.nutritionEntries : [];
+
+    const entries = [];
+    for (const raw of rawWorkouts) {
+      const workout = sanitizeWorkout(raw, uid);
+      if (workout) entries.push({ ref: userDocument.collection("workouts").doc(workout.id), data: workout });
+    }
+    for (const raw of rawNutrition) {
+      const entry = sanitizeNutrition(raw, uid);
+      if (entry) entries.push({ ref: userDocument.collection("nutritionEntries").doc(entry.id), data: entry });
+    }
+    await commitInChunks(database, entries);
+    return response.json({ written: entries.length });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+// Returns the signed-in user's cloud workouts and nutrition entries for local mirroring.
+app.get("/sync/pull", requireClerkUser, requireFirestore, async (request, response, next) => {
+  try {
+    const uid = request.clerkUserId;
+    const database = request.firestore;
+    const userDocument = database.collection("users").doc(uid);
+    const [workoutSnapshot, nutritionSnapshot] = await Promise.all([
+      userDocument.collection("workouts").orderBy("startedAtMillis", "desc").limit(500).get(),
+      userDocument.collection("nutritionEntries").orderBy("consumedAtMillis", "desc").limit(500).get(),
+    ]);
+    return response.json({
+      workouts: workoutSnapshot.docs.map((snapshot) => stripInternal(snapshot.data())),
+      nutritionEntries: nutritionSnapshot.docs.map((snapshot) => stripInternal(snapshot.data())),
+    });
   } catch (error) {
     return next(error);
   }

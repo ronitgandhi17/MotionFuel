@@ -91,7 +91,7 @@ import java.util.Locale
 fun TodayScreen(
     workouts: List<WorkoutSummary>,
     nutrition: NutritionTotals,
-    weather: WeatherContext,
+    weather: WeatherContext?,
     weatherStatus: String,
     insights: List<Insight>,
     settings: UserSettings,
@@ -127,9 +127,14 @@ fun TodayScreen(
             ) {
                 Row(Modifier.fillMaxWidth().padding(20.dp), verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
-                        Text("MELBOURNE NOW", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
-                        Text("${weather.temperatureC.toInt()}°", style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Black)
-                        Text("${weather.humidityPercent}% humidity • ${weather.windSpeedKph.toInt()} km/h wind")
+                        Text("LOCAL CONDITIONS", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                        if (weather != null) {
+                            Text("${weather.temperatureC.toInt()}°", style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Black)
+                            Text("${weather.humidityPercent}% humidity • ${weather.windSpeedKph.toInt()} km/h wind")
+                        } else {
+                            Text("—°", style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Black)
+                            Text("Weather appears once your location is available")
+                        }
                         Text(weatherStatus, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     Icon(Icons.Rounded.Cloud, contentDescription = null, modifier = Modifier.size(54.dp), tint = MaterialTheme.colorScheme.primary)
@@ -205,7 +210,7 @@ fun ActivityScreen(workouts: List<WorkoutSummary>, settings: UserSettings, onSta
                         Icon(Icons.Rounded.DirectionsRun, contentDescription = null, modifier = Modifier.size(44.dp), tint = FuelGreen)
                         Spacer(Modifier.height(12.dp))
                         Text("No saved workouts", fontWeight = FontWeight.Bold)
-                        Text("Use the assessor demo for a deterministic first trace.", style = MaterialTheme.typography.bodySmall)
+                        Text("Start a walk or run to record your first activity.", style = MaterialTheme.typography.bodySmall)
                     }
                 }
             }
@@ -280,6 +285,7 @@ fun ProfileScreen(
     profileName: String,
     profileEmail: String?,
     settings: UserSettings,
+    latestRoute: List<GeoPoint>,
     membership: MembershipUiState,
     onUnitsChanged: (UnitSystem) -> Unit,
     onRouteBackupChanged: (Boolean) -> Unit,
@@ -294,11 +300,15 @@ fun ProfileScreen(
     onPortalOpened: () -> Unit,
     onSignOut: () -> Unit,
 ) {
-    // Builds the local privacy preview independently of the saved workout route.
+    // Previews privacy-zone masking on the most recent real workout route, when one exists.
     var confirmDelete by remember { mutableStateOf(false) }
-    val originalRoute = remember { privacyRoute() }
-    val zone = remember { PrivacyZone(originalRoute.first(), 95.0) }
-    val masked = remember { PrivacyZoneMasker.mask(originalRoute, listOf(zone)) }
+    val maskedRoute = remember(latestRoute) {
+        if (latestRoute.size >= 3) {
+            PrivacyZoneMasker.mask(latestRoute, listOf(PrivacyZone(latestRoute.first(), 95.0)))
+        } else {
+            emptyList()
+        }
+    }
     val context = LocalContext.current
     // Maps every Stripe PaymentSheet result back into the membership ViewModel.
     val paymentSheet = rememberPaymentSheet { result ->
@@ -410,8 +420,18 @@ fun ProfileScreen(
                     checked = settings.routeBackupEnabled,
                     onCheckedChange = onRouteBackupChanged,
                 )
-                RouteCanvas(masked, Modifier.fillMaxWidth().height(135.dp))
-                Text("Privacy-zone preview: ${originalRoute.size - masked.size} endpoint points removed inside 95 m.", style = MaterialTheme.typography.labelSmall)
+                if (maskedRoute.isNotEmpty()) {
+                    RouteCanvas(maskedRoute, Modifier.fillMaxWidth().height(135.dp))
+                    Text(
+                        "Privacy-zone preview: ${latestRoute.size - maskedRoute.size} endpoint points removed inside 95 m of your last route.",
+                        style = MaterialTheme.typography.labelSmall,
+                    )
+                } else {
+                    Text(
+                        "Record a workout to preview privacy-zone masking. Endpoint points inside 95 m are removed before any route is backed up.",
+                        style = MaterialTheme.typography.labelSmall,
+                    )
+                }
             }
         }
         item {
@@ -434,7 +454,7 @@ fun ProfileScreen(
             OutlinedButton(onClick = { confirmDelete = true }, modifier = Modifier.fillMaxWidth()) {
                 Icon(Icons.Rounded.DeleteForever, contentDescription = null, tint = FuelRose)
                 Spacer(Modifier.size(8.dp))
-                Text("Delete local demo data", color = FuelRose)
+                Text("Delete local data", color = FuelRose)
             }
         }
         item {
@@ -500,11 +520,4 @@ private fun ReadinessRow(icon: ImageVector, title: String, detail: String, color
 private fun isToday(time: Long): Boolean {
     val formatter = SimpleDateFormat("yyyyMMdd", Locale.US)
     return formatter.format(Date(time)) == formatter.format(Date())
-}
-
-private fun privacyRoute(): List<GeoPoint> {
-    val now = System.currentTimeMillis()
-    return List(18) { index ->
-        GeoPoint(-37.8136 + index * 0.00008, 144.9631 + index * 0.00009, timestampMillis = now + index * 5_000)
-    }
 }

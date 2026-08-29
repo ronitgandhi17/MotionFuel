@@ -22,4 +22,9 @@ object AppConfig {
         !stripePublishableKey.contains("replace_me", ignoreCase = true) &&
         membershipApiBaseUrl.startsWith("https://") &&
         !membershipApiBaseUrl.contains("example.com", ignoreCase = true)
+
+    // Cloud sync reuses the same secure backend URL and requires a configured Clerk identity.
+    val isSyncConfigured: Boolean = isClerkConfigured &&
+        membershipApiBaseUrl.startsWith("https://") &&
+        !membershipApiBaseUrl.contains("example.com", ignoreCase = true)
 }

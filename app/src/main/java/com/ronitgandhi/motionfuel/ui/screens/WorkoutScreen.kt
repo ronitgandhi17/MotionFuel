@@ -70,11 +70,7 @@ fun WorkoutScreen(
                 Column(Modifier.weight(1f)) {
                     Text(if (complete) "Workout saved" else telemetry.type.name.lowercase().replaceFirstChar { it.uppercase() }, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black)
                     Text(
-                        when {
-                            complete -> "Committed to Room • sync can follow later"
-                            telemetry.isDemo -> "Assessor trace replay • 5× simulated time"
-                            else -> "Real sensors • foreground tracking"
-                        },
+                        if (complete) "Saved to your activity history" else "Real sensors • foreground tracking",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }

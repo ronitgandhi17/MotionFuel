@@ -14,6 +14,18 @@ interface WorkoutDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(workout: WorkoutEntity)
 
+    // Reads rows still awaiting upload so the sync worker can push them to the backend.
+    @Query("SELECT * FROM workouts WHERE syncState = 'PENDING' ORDER BY startedAtMillis ASC")
+    suspend fun pending(): List<WorkoutEntity>
+
+    // Mirrors rows pulled from the backend; they arrive already marked as synced.
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertAll(rows: List<WorkoutEntity>)
+
+    // Flips uploaded rows to synced so they are not sent again.
+    @Query("UPDATE workouts SET syncState = 'SYNCED' WHERE id IN (:ids)")
+    suspend fun markSynced(ids: List<String>)
+
     @Query("DELETE FROM workouts")
     suspend fun deleteAll()
 }
@@ -37,6 +49,18 @@ interface NutritionDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(entry: NutritionEntryEntity)
+
+    // Reads rows still awaiting upload so the sync worker can push them to the backend.
+    @Query("SELECT * FROM nutrition_entries WHERE syncState = 'PENDING' ORDER BY consumedAtMillis ASC")
+    suspend fun pending(): List<NutritionEntryEntity>
+
+    // Mirrors rows pulled from the backend; they arrive already marked as synced.
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertAll(rows: List<NutritionEntryEntity>)
+
+    // Flips uploaded rows to synced so they are not sent again.
+    @Query("UPDATE nutrition_entries SET syncState = 'SYNCED' WHERE id IN (:ids)")
+    suspend fun markSynced(ids: List<String>)
 
     @Query("DELETE FROM nutrition_entries")
     suspend fun deleteAll()

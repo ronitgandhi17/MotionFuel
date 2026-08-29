@@ -7,6 +7,7 @@ import com.ronitgandhi.motionfuel.config.AppConfig
 import com.ronitgandhi.motionfuel.data.local.MotionFuelDatabase
 import com.ronitgandhi.motionfuel.data.network.ContextApiClient
 import com.ronitgandhi.motionfuel.data.network.MembershipApiClient
+import com.ronitgandhi.motionfuel.data.network.SyncApiClient
 import com.ronitgandhi.motionfuel.data.repository.MotionFuelRepository
 import com.ronitgandhi.motionfuel.data.settings.SettingsRepository
 import com.stripe.android.PaymentConfiguration
@@ -40,5 +41,9 @@ class MotionFuelApplication : Application() {
     // Connects the Android app to the Clerk-protected Stripe membership server.
     val membershipApiClient: MembershipApiClient by lazy {
         MembershipApiClient(AppConfig.membershipApiBaseUrl)
+    }
+    // Connects the Android app to the Clerk-protected Firestore sync gateway (same backend).
+    val syncApiClient: SyncApiClient by lazy {
+        SyncApiClient(AppConfig.membershipApiBaseUrl)
     }
 }

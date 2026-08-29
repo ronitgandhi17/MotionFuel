@@ -19,7 +19,6 @@ import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.Restaurant
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
@@ -36,6 +35,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ronitgandhi.motionfuel.auth.AuthLifecycle
@@ -193,6 +193,7 @@ private fun MotionFuelRoot(
                         profileName = profileName,
                         profileEmail = profileEmail,
                         settings = settings,
+                        latestRoute = workouts.firstOrNull()?.route ?: emptyList(),
                         membership = membership,
                         onUnitsChanged = viewModel::setUnits,
                         onRouteBackupChanged = viewModel::setRouteBackup,
@@ -215,10 +216,6 @@ private fun MotionFuelRoot(
     if (showStartDialog) {
         StartWorkoutDialog(
             onDismiss = { showStartDialog = false },
-            onDemo = { type ->
-                showStartDialog = false
-                viewModel.startDemo(type)
-            },
             onReal = { type ->
                 showStartDialog = false
                 pendingRealType = type
@@ -238,7 +235,6 @@ private fun MotionFuelRoot(
 @Composable
 private fun StartWorkoutDialog(
     onDismiss: () -> Unit,
-    onDemo: (WorkoutType) -> Unit,
     onReal: (WorkoutType) -> Unit,
 ) {
     var type by remember { mutableStateOf(WorkoutType.RUN) }
@@ -248,17 +244,14 @@ private fun StartWorkoutDialog(
         title = { Text("Start workout", fontWeight = FontWeight.Bold) },
         text = {
             androidx.compose.foundation.layout.Column {
-                Text("Choose the activity, then use real sensors or the deterministic assessment trace.")
+                Text("Choose the activity, then start tracking with your device sensors and GPS.")
                 androidx.compose.foundation.layout.Row {
                     TextButton(onClick = { type = WorkoutType.WALK }) { Text(if (type == WorkoutType.WALK) "✓ Walk" else "Walk") }
                     TextButton(onClick = { type = WorkoutType.RUN }) { Text(if (type == WorkoutType.RUN) "✓ Run" else "Run") }
                 }
-                if (BuildConfig.DEBUG) {
-                    Button(onClick = { onDemo(type) }) { Text("Run assessor demo") }
-                }
-                OutlinedButton(onClick = { onReal(type) }) { Text("Use real sensors") }
+                OutlinedButton(onClick = { onReal(type) }) { Text("Start tracking") }
                 Text(
-                    "The demo injects a stationary start, walk, run, hill, pace decline and impossible GPS jump.",
+                    "MotionFuel records real GPS, motion and elevation in a foreground service. Grant location to begin.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

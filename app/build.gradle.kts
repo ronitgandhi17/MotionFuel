@@ -103,6 +103,9 @@ dependencies {
     ksp("androidx.room:room-compiler:2.7.2")
     implementation("androidx.datastore:datastore-preferences:1.1.7")
 
+    // Runs deferrable, network-constrained cloud sync as a background WorkManager job.
+    implementation("androidx.work:work-runtime-ktx:2.10.1")
+
     // Adds the Kotlin-2.2-compatible Clerk SDK for authentication and session tokens.
     implementation("com.clerk:clerk-android:0.1.24")
     // Adds Stripe PaymentSheet and secure Android payment handling for memberships.

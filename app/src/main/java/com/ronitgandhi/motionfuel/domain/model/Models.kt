@@ -93,7 +93,6 @@ data class WorkoutTelemetry(
     val gpsQuality: LocationQuality = LocationQuality.POOR,
     val route: List<GeoPoint> = emptyList(),
     val rejectedGpsPoints: Int = 0,
-    val isDemo: Boolean = false,
 )
 
 data class WorkoutSummary(
