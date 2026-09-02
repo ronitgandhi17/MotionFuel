@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- Allows Firebase Auth/Firestore, weather, food and Google Maps requests. -->
+    <!-- Allows Firebase, weather, food and map requests. -->
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- Allows accurate and approximate GPS collection during a real workout. -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
@@ -34,11 +34,10 @@
         android:theme="@style/Theme.MotionFuel"
         android:usesCleartextTraffic="false">
 
-        <!-- Supplies the Google Maps key from secrets.properties via the mapsApiKey placeholder.
-             When blank, maps-compose is skipped at runtime and the offline RouteCanvas is used. -->
+        <!-- Reads the Android-restricted Maps key injected from local.properties. -->
         <meta-data
             android:name="com.google.android.geo.API_KEY"
-            android:value="${mapsApiKey}" />
+            android:value="${MAPS_API_KEY}" />
 
         <!-- Provides the single exported launcher entry point for the app. -->
         <activity

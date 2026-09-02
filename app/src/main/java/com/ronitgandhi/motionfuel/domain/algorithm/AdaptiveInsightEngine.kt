@@ -5,21 +5,10 @@ import com.ronitgandhi.motionfuel.domain.model.Insight
 import com.ronitgandhi.motionfuel.domain.model.InsightCategory
 import com.ronitgandhi.motionfuel.domain.model.InsightEvidence
 import com.ronitgandhi.motionfuel.domain.model.InsightPriority
-import com.ronitgandhi.motionfuel.domain.model.LocationQuality
 
 class AdaptiveInsightEngine {
     fun evaluate(context: DailyContext): List<Insight> {
         val candidates = buildList {
-            if (context.workoutActive && context.gpsQuality == LocationQuality.POOR) add(
-                insight(
-                    InsightCategory.LOCATION_QUALITY_LOW,
-                    "GPS signal is weak",
-                    "Distance and pace may be temporarily less precise. Tracking continues locally.",
-                    InsightPriority.HIGH,
-                    0.96f,
-                    "GPS quality" to "Poor",
-                ),
-            )
             val heat = context.weather?.temperatureC ?: 0.0
             if (context.workoutActive && heat >= 28.0 && context.paceDeclinePercent >= 8.0 && context.effortScore >= 0.65) add(
                 insight(
