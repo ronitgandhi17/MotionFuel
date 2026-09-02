@@ -9,6 +9,7 @@ import androidx.compose.ui.graphics.Color
 
 val FuelGreen = Color(0xFF56E39F)
 val FuelGreenDark = Color(0xFF0C8C5E)
+val FuelBlue = Color(0xFF0066EE)
 val FuelNavy = Color(0xFF0C1B33)
 val FuelNavySoft = Color(0xFF152947)
 val FuelSky = Color(0xFF62B6FF)
@@ -34,13 +35,13 @@ private val DarkColors = darkColorScheme(
 )
 
 private val LightColors = lightColorScheme(
-    primary = FuelGreenDark,
+    primary = FuelBlue,
     onPrimary = Color.White,
-    primaryContainer = Color(0xFFB9F5D8),
-    onPrimaryContainer = Color(0xFF002116),
+    primaryContainer = Color(0xFFD9E6FF),
+    onPrimaryContainer = Color(0xFF001B3F),
     secondary = Color(0xFF00639A),
     tertiary = Color(0xFF8C4B00),
-    background = Mist,
+    background = Color(0xFFF6F7F9),
     onBackground = Ink,
     surface = Color.White,
     onSurface = Ink,

@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.CheckCircle
@@ -27,7 +26,6 @@ import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -35,13 +33,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.ronitgandhi.motionfuel.domain.model.Insight
-import com.ronitgandhi.motionfuel.domain.model.LocationQuality
 import com.ronitgandhi.motionfuel.domain.model.UnitSystem
 import com.ronitgandhi.motionfuel.domain.model.WorkoutStatus
 import com.ronitgandhi.motionfuel.domain.model.WorkoutTelemetry
-import com.ronitgandhi.motionfuel.core.maps.RouteMap
 import com.ronitgandhi.motionfuel.ui.components.InsightCard
 import com.ronitgandhi.motionfuel.ui.components.MetricCard
+import com.ronitgandhi.motionfuel.ui.components.RouteCanvas
 import com.ronitgandhi.motionfuel.ui.components.formatDistance
 import com.ronitgandhi.motionfuel.ui.components.formatDuration
 import com.ronitgandhi.motionfuel.ui.components.formatPace
@@ -70,24 +67,18 @@ fun WorkoutScreen(
                 Column(Modifier.weight(1f)) {
                     Text(if (complete) "Workout saved" else telemetry.type.name.lowercase().replaceFirstChar { it.uppercase() }, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black)
                     Text(
-                        if (complete) "Saved to your activity history" else "Real sensors • foreground tracking",
+                        when {
+                            complete -> "Committed to Room • sync can follow later"
+                            telemetry.isDemo -> "Assessor trace replay • 5× simulated time"
+                            else -> "Real sensors • foreground tracking"
+                        },
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                }
-                Surface(
-                    shape = CircleShape,
-                    color = when (telemetry.gpsQuality) {
-                        LocationQuality.GOOD -> FuelGreen.copy(alpha = 0.16f)
-                        LocationQuality.FAIR -> FuelOrange.copy(alpha = 0.16f)
-                        LocationQuality.POOR -> FuelRose.copy(alpha = 0.16f)
-                    },
-                ) {
-                    Text("GPS ${telemetry.gpsQuality.name.lowercase()}", modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp), style = MaterialTheme.typography.labelMedium)
                 }
             }
         }
         item {
-            RouteMap(telemetry.route, Modifier.fillMaxWidth().height(245.dp), telemetry.rejectedGpsPoints > 0)
+            RouteCanvas(telemetry.route, Modifier.fillMaxWidth().height(245.dp), telemetry.rejectedGpsPoints > 0)
         }
         item {
             Text(formatDuration(telemetry.elapsedSeconds), style = MaterialTheme.typography.displayMedium, fontWeight = FontWeight.Black)

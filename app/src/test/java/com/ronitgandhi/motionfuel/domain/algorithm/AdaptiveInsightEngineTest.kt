@@ -2,25 +2,12 @@ package com.ronitgandhi.motionfuel.domain.algorithm
 
 import com.ronitgandhi.motionfuel.domain.model.DailyContext
 import com.ronitgandhi.motionfuel.domain.model.InsightCategory
-import com.ronitgandhi.motionfuel.domain.model.LocationQuality
 import com.ronitgandhi.motionfuel.domain.model.WeatherContext
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class AdaptiveInsightEngineTest {
-    @Test
-    fun idleDashboardDoesNotReportPoorGps() {
-        val insights = AdaptiveInsightEngine().evaluate(
-            DailyContext(
-                workoutActive = false,
-                gpsQuality = LocationQuality.POOR,
-            ),
-        )
-
-        assertTrue(insights.none { it.category == InsightCategory.LOCATION_QUALITY_LOW })
-    }
-
     @Test
     fun heatAndPaceDeclineProducesExplainableInsight() {
         val insights = AdaptiveInsightEngine().evaluate(

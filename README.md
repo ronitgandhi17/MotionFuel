@@ -1,79 +1,54 @@
 # MotionFuel
 
-MotionFuel is a context-aware Android fitness and nutrition companion. It is local-first (Room is the source of truth) with per-user Cloud Firestore sync, Firebase Authentication as the identity gate, live GPS workout tracking, Mifflin–St Jeor maintenance-calorie estimation, and calorie/macro logging with a calorie-history chart.
+MotionFuel is a Kotlin/Jetpack Compose fitness and nutrition app that combines Firebase accounts, maintenance-calorie estimates, an offline nutrition diary, walk/run tracking and explainable context insights.
 
-The project builds and runs green with **no configuration**: without `google-services.json` it shows a "configure Firebase" gate; without a Maps key it draws routes on an offline canvas; food search works with no key.
+## Implemented in this revision
 
-## What is implemented
+- Firebase Authentication email/password login, registration, password reset, verification email and persisted sessions.
+- Multi-step signup for name, age, sex, height, weight and activity level.
+- Pure Kotlin Mifflin–St Jeor BMR and activity-factor TDEE calculation with unit tests.
+- Firestore user profiles stored at `users/{uid}` and protected by UID-based security rules.
+- MyFitnessPal-inspired light-first Today, Diary and Progress information hierarchy with original MotionFuel branding.
+- `Goal − Food + Exercise = Remaining` calorie summary and separate maintenance-calorie value.
+- Breakfast, Lunch, Dinner and Snacks diary sections with meal-specific food logging.
+- Separate 7-day/30-day calorie and weight bar graphs drawn with Compose Canvas.
+- Room migration and offline weight-history persistence.
+- User-facing GPS quality indicator removed while internal point validation and drift rejection remain active.
+- Existing foreground workout service, sensor fusion, weather, food search, privacy masking and AFEE insights retained.
 
-- Jetpack Compose + Material 3 UI with five destinations: **Today · Activity · Food · Progress · Profile**.
-- **Firebase Authentication** (email/password, password reset, optional verification) as the sole identity system and app-start gate.
-- Multi-step **Sign Up** (name, age, sex, height, weight, activity level) computing **Mifflin–St Jeor BMR + activity-factor TDEE** as estimated maintenance calories, shown separately from an editable daily calorie goal.
-- **Direct-client Cloud Firestore** at `users/{uid}/…`, protected by Security Rules (`request.auth != null && request.auth.uid == userId`).
-- Breakfast/Lunch/Dinner/Snack logging with % of daily goal, macro totals, **Custom Meal** (macros + 4/4/9 calorie prefill + optional local photo) and Open Food Facts search.
-- A **7/30-day calorie bar chart** (Compose Canvas) with historical target snapshots.
-- Real walk/run tracking in a foreground service: GPS with accuracy validation, Haversine distance, impossible-jump and stationary-drift rejection, plus a stationary/walking/running classifier.
-- **Google Maps Compose** live/saved route when `MAPS_API_KEY` is configured, with an offline `RouteMap`/`RouteCanvas` fallback otherwise.
-- Weight tracking with trend (UP/DOWN/FLAT), Progress and Maintenance-detail screens.
-- Offline-first Room storage draining a `syncState` queue to Firestore with WorkManager.
-- DataStore preferences for units, theme and detailed-route backup consent.
-- Open-Meteo weather from the device's last known location, with clear offline status.
-- Privacy-zone route masking preview and route-backup opt-in (off by default).
-- Unit tests for GPS filtering, sensor fusion/hysteresis, insight ranking, privacy masking, and the maintenance/nutrition/weight-trend algorithms.
+## Firebase setup
+
+Follow [docs/FIREBASE_SETUP.md](docs/FIREBASE_SETUP.md). The app intentionally shows a Firebase setup screen until a valid `app/google-services.json` is present.
 
 ## Open and run
 
-1. Open the **MotionFuel** folder (the one containing `settings.gradle.kts`) in Android Studio.
-2. Let Gradle sync finish. Use the Embedded JDK 17 or 21.
-3. Install Android SDK 36 if prompted.
-4. (Optional) Follow [docs/FIREBASE_SETUP.md](docs/FIREBASE_SETUP.md) to enable auth + cloud sync, and copy `secrets.properties.example` to `secrets.properties` to add a client-safe `MAPS_API_KEY`.
-5. Select the `app` module and the `debug` variant.
-6. Run on an Android 10+ emulator or device. Without Firebase configured the app shows a setup gate rather than bypassing authentication.
+1. Open this folder—the one containing `settings.gradle.kts`—in Android Studio.
+2. Use Android Studio's Embedded JDK 17 or 21 and install Android SDK 36 if prompted.
+3. Add Firebase configuration by following the setup guide.
+4. Select the `debug` build variant and sync Gradle.
+5. Run on an Android 10+ emulator or physical device.
 
-## Build and test commands
-
-macOS/Linux:
-
-```bash
-./gradlew testDebugUnitTest assembleDebug
+```powershell
+.\gradlew.bat testDebugUnitTest
+.\gradlew.bat assembleDebug
 ```
 
-Windows:
+The project uses AGP 9.0.1, Gradle 9.1.0, KSP 2.3.6, Google services plugin 4.5.0 and Firebase BoM 34.18.0.
 
-```bash
-gradlew.bat testDebugUnitTest assembleDebug
-```
+## Assessment demo
 
-The debug APK is written beneath `app/build/outputs/apk/debug/`.
+1. Create a Firebase account and show the TDEE preview during signup.
+2. Open Today and explain maintenance calories versus the editable daily goal.
+3. Add foods to different Diary meals and show immediate calorie/macronutrient changes.
+4. Run the debug-only deterministic workout trace and show the filtered route and sensor-derived metrics.
+5. Add a weight in Progress and switch between 7-day and 30-day calorie/weight bar graphs.
+6. Reopen the app offline to demonstrate Room-backed history.
 
-## Architecture
+## Privacy
 
-```mermaid
-flowchart TD
-    Auth["Firebase Auth session"] --> UI["Compose screens"]
-    UI --> VM["MotionFuelViewModel"]
-    VM --> Domain["Pure Kotlin algorithms"]
-    VM --> Repo["MotionFuelRepository"]
-    Service["Foreground tracking service"] --> Domain
-    Service --> Session["Workout session StateFlow"]
-    Session --> VM
-    Repo --> Room["Room source of truth"]
-    Repo --> Sync["SyncWorker · WorkManager"]
-    Sync --> Firestore["Cloud Firestore · users/{uid}"]
-    VM --> DataStore["DataStore preferences"]
-    VM --> APIs["Weather + food APIs"]
-```
-
-The algorithms contain no Compose or database dependencies, keeping them deterministic and directly unit-testable. Raw sensor callbacks stay in the service; the UI observes a low-frequency immutable workout model.
-
-## Privacy and safety
-
-- Detailed route backup defaults to off; the detailed route is uploaded only when the toggle is on.
-- Firestore Security Rules restrict every private document to its owner (`request.auth.uid == userId`); ownership is derived from the authenticated user, never a client-supplied field.
-- Custom Meal photo URIs are local-only and never uploaded.
-- Raw high-frequency sensor traces are never uploaded.
-- Android Auto Backup excludes the database and settings file.
-- API traffic uses HTTPS. No API keys or secrets are committed; `google-services.json` and `secrets.properties` are git-ignored.
-- The Maps key is client-safe and restricted by SHA-1 + package name in the Google Cloud console.
-- Insights are wellness-oriented estimates and explicitly avoid diagnosis or treatment claims.
-- Permissions are requested contextually when real tracking starts.
+- Passwords and sessions are managed by Firebase Authentication.
+- Firestore rules restrict private data to the authenticated UID.
+- Detailed route backup defaults to off.
+- High-frequency inertial samples remain on device.
+- `app/google-services.json`, `local.properties` and signing files are ignored by Git.
+- Calorie, burn and TDEE values are transparent wellness estimates rather than medical advice.
