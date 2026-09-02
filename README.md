@@ -14,7 +14,14 @@ MotionFuel is a Kotlin/Jetpack Compose fitness and nutrition app that combines F
 - Separate 7-day/30-day calorie and weight bar graphs drawn with Compose Canvas.
 - Room migration and offline weight-history persistence.
 - User-facing GPS quality indicator removed while internal point validation and drift rejection remain active.
-- Existing foreground workout service, sensor fusion, weather, food search, privacy masking and AFEE insights retained.
+- Tappable saved activities with a detailed Google Maps route and workout-statistics summary.
+- One-button 1080 × 1350 social image sharing using the complete route and attributed Google basemap.
+- GPS rejection counts, noise-removal messages and endpoint-trimming controls removed from the UI.
+- Existing foreground workout service, sensor fusion, weather, food search, cloud-route privacy masking and AFEE insights retained.
+
+## Product requirements
+
+The implementation-aligned specification is maintained in [docs/MotionFuel_PRD_Updated_Firebase.md](docs/MotionFuel_PRD_Updated_Firebase.md).
 
 ## Firebase setup
 
@@ -41,14 +48,16 @@ The project uses AGP 9.0.1, Gradle 9.1.0, KSP 2.3.6, Google services plugin 4.5.
 2. Open Today and explain maintenance calories versus the editable daily goal.
 3. Add foods to different Diary meals and show immediate calorie/macronutrient changes.
 4. Run the debug-only deterministic workout trace and show the filtered route and sensor-derived metrics.
-5. Add a weight in Progress and switch between 7-day and 30-day calorie/weight bar graphs.
-6. Reopen the app offline to demonstrate Room-backed history.
+5. Tap a saved Activity to open its full summary, then use **Share activity image** to open Android's share sheet.
+6. Add a weight in Progress and switch between 7-day and 30-day calorie/weight bar graphs.
+7. Reopen the app offline to demonstrate Room-backed history.
 
 ## Privacy
 
 - Passwords and sessions are managed by Firebase Authentication.
 - Firestore rules restrict private data to the authenticated UID.
 - Detailed route backup defaults to off.
+- Shared activity images are created only after an explicit button press and currently include the complete recorded route.
 - High-frequency inertial samples remain on device.
 - `app/google-services.json`, `local.properties` and signing files are ignored by Git.
 - Calorie, burn and TDEE values are transparent wellness estimates rather than medical advice.
