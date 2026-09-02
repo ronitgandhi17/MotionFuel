@@ -44,6 +44,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -51,13 +53,16 @@ import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.LatLngBounds
+import com.google.android.gms.maps.model.MapStyleOptions
 import com.google.maps.android.compose.GoogleMap
+import com.google.maps.android.compose.MapProperties
 import com.google.maps.android.compose.MapUiSettings
 import com.google.maps.android.compose.Marker
 import com.google.maps.android.compose.MarkerState
 import com.google.maps.android.compose.Polyline
 import com.google.maps.android.compose.rememberCameraPositionState
 import com.ronitgandhi.motionfuel.BuildConfig
+import com.ronitgandhi.motionfuel.R
 import com.ronitgandhi.motionfuel.domain.model.GeoPoint
 import com.ronitgandhi.motionfuel.domain.model.Insight
 import com.ronitgandhi.motionfuel.domain.model.InsightPriority
@@ -243,13 +248,19 @@ fun RouteCanvas(route: List<GeoPoint>, modifier: Modifier = Modifier, showReject
 @Composable
 fun RouteMap(route: List<GeoPoint>, modifier: Modifier = Modifier, showRejectedBadge: Boolean = false) {
     // Uses the deterministic canvas only when the developer has not configured a Maps API key.
-    if (!BuildConfig.MAPS_API_KEY_CONFIGURED || route.isEmpty()) {
+    if (!BuildConfig.MAPS_API_KEY_CONFIGURED) {
         RouteCanvas(route, modifier, showRejectedBadge)
         return
     }
     val coordinates = remember(route) { route.map { LatLng(it.latitude, it.longitude) } }
+    val initialPosition = coordinates.lastOrNull() ?: LatLng(-37.8136, 144.9631)
     val cameraState = rememberCameraPositionState {
-        position = CameraPosition.fromLatLngZoom(coordinates.last(), 16f)
+        position = CameraPosition.fromLatLngZoom(initialPosition, if (coordinates.isEmpty()) 12f else 16f)
+    }
+    val context = LocalContext.current
+    val useDarkMap = MaterialTheme.colorScheme.background.luminance() < 0.5f
+    val mapStyle = remember(useDarkMap) {
+        if (useDarkMap) MapStyleOptions.loadRawResourceStyle(context, R.raw.map_style_dark) else null
     }
     var mapLoaded by remember { mutableStateOf(false) }
     androidx.compose.runtime.LaunchedEffect(mapLoaded, coordinates) {
@@ -265,12 +276,22 @@ fun RouteMap(route: List<GeoPoint>, modifier: Modifier = Modifier, showRejectedB
         GoogleMap(
             modifier = Modifier.fillMaxSize(),
             cameraPositionState = cameraState,
+            properties = MapProperties(mapStyleOptions = mapStyle),
             uiSettings = MapUiSettings(zoomControlsEnabled = false, compassEnabled = true),
             onMapLoaded = { mapLoaded = true },
         ) {
-            Polyline(points = coordinates, color = FuelGreen, width = 12f)
-            Marker(state = MarkerState(coordinates.first()), title = "Start")
+            if (coordinates.size > 1) Polyline(points = coordinates, color = FuelGreen, width = 12f)
+            coordinates.firstOrNull()?.let { Marker(state = MarkerState(it), title = "Start") }
             if (coordinates.size > 1) Marker(state = MarkerState(coordinates.last()), title = "Current position")
+        }
+        if (coordinates.isEmpty()) {
+            Surface(
+                modifier = Modifier.align(Alignment.Center),
+                shape = RoundedCornerShape(14.dp),
+                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.90f),
+            ) {
+                Text("Waiting for GPS fix", modifier = Modifier.padding(horizontal = 14.dp, vertical = 9.dp), style = MaterialTheme.typography.labelLarge)
+            }
         }
         if (showRejectedBadge) {
             Surface(

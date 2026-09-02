@@ -265,9 +265,21 @@ class WorkoutTrackingService : Service(), SensorEventListener, LocationListener 
             WorkoutSessionController.update { it.copy(gpsQuality = LocationQuality.POOR) }
             return
         }
-        runCatching {
-            locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 1_000L, 0f, this, Looper.getMainLooper())
-        }.onFailure {
+        // Combines satellite and network providers so the first usable point arrives faster indoors.
+        val providers = listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER).filter { provider ->
+            runCatching { locationManager.isProviderEnabled(provider) }.getOrDefault(false)
+        }
+        providers.forEach { provider ->
+            runCatching {
+                val interval = if (provider == LocationManager.GPS_PROVIDER) 1_000L else 3_000L
+                locationManager.requestLocationUpdates(provider, interval, 0f, this, Looper.getMainLooper())
+            }
+        }
+        // Seeds the map with the most accurate cached fix while fresh updates are being acquired.
+        providers.mapNotNull { provider -> runCatching { locationManager.getLastKnownLocation(provider) }.getOrNull() }
+            .minByOrNull { it.accuracy }
+            ?.let(::onLocationChanged)
+        if (providers.isEmpty()) {
             WorkoutSessionController.update { state -> state.copy(gpsQuality = LocationQuality.POOR) }
         }
     }
