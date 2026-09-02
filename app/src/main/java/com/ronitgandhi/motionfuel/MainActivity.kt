@@ -44,9 +44,11 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ronitgandhi.motionfuel.auth.AuthLifecycle
 import com.ronitgandhi.motionfuel.auth.FirebaseAuthViewModel
 import com.ronitgandhi.motionfuel.domain.model.WorkoutStatus
+import com.ronitgandhi.motionfuel.domain.model.WorkoutSummary
 import com.ronitgandhi.motionfuel.domain.model.WorkoutType
 import com.ronitgandhi.motionfuel.domain.model.UserProfile
 import com.ronitgandhi.motionfuel.ui.screens.ActivityScreen
+import com.ronitgandhi.motionfuel.ui.screens.ActivityDetailScreen
 import com.ronitgandhi.motionfuel.ui.screens.AuthenticationErrorScreen
 import com.ronitgandhi.motionfuel.ui.screens.AuthenticationLoadingScreen
 import com.ronitgandhi.motionfuel.ui.screens.FirebaseAuthScreen
@@ -147,6 +149,7 @@ private fun MotionFuelRoot(
     val foodResults by viewModel.foodResults.collectAsStateWithLifecycle()
     val foodSearchStatus by viewModel.foodSearchStatus.collectAsStateWithLifecycle()
     var selectedTab by remember { mutableStateOf(MainTab.TODAY) }
+    var selectedWorkout by remember { mutableStateOf<WorkoutSummary?>(null) }
     var showStartDialog by remember { mutableStateOf(false) }
     var pendingRealType by remember { mutableStateOf<WorkoutType?>(null) }
 
@@ -168,6 +171,13 @@ private fun MotionFuelRoot(
                 viewModel.dismissCompletedWorkout()
                 selectedTab = MainTab.ACTIVITY
             },
+        )
+    } else if (selectedWorkout != null) {
+        ActivityDetailScreen(
+            workout = requireNotNull(selectedWorkout),
+            units = settings.units,
+            darkTheme = settings.darkTheme,
+            onBack = { selectedWorkout = null },
         )
     } else {
         Scaffold(
@@ -200,7 +210,12 @@ private fun MotionFuelRoot(
                         onOpenActivity = { selectedTab = MainTab.ACTIVITY },
                         onOpenFood = { selectedTab = MainTab.FOOD },
                     )
-                    MainTab.ACTIVITY -> ActivityScreen(workouts, settings) { showStartDialog = true }
+                    MainTab.ACTIVITY -> ActivityScreen(
+                        workouts = workouts,
+                        settings = settings,
+                        onStartWorkout = { showStartDialog = true },
+                        onActivitySelected = { selectedWorkout = it },
+                    )
                     MainTab.FOOD -> FoodScreen(
                         totals = totals,
                         entries = entries,

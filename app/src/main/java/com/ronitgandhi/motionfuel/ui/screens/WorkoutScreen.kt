@@ -78,7 +78,7 @@ fun WorkoutScreen(
             }
         }
         item {
-            RouteMap(telemetry.route, Modifier.fillMaxWidth().height(245.dp), telemetry.rejectedGpsPoints > 0)
+            RouteMap(telemetry.route, Modifier.fillMaxWidth().height(245.dp))
         }
         item {
             Text(formatDuration(telemetry.elapsedSeconds), style = MaterialTheme.typography.displayMedium, fontWeight = FontWeight.Black)
