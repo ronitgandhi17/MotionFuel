@@ -33,10 +33,9 @@ object ActivityShareImage {
         workout: WorkoutSummary,
         units: UnitSystem,
         darkTheme: Boolean,
-        trimEndpoints: Boolean,
         mapBitmap: Bitmap? = null,
     ): Intent {
-        val bitmap = render(workout, units, darkTheme, trimEndpoints, mapBitmap)
+        val bitmap = render(workout, units, darkTheme, mapBitmap)
         val directory = File(context.cacheDir, "shared_activities").apply { mkdirs() }
         directory.listFiles()?.filter { it.name.endsWith(".png") }?.forEach(File::delete)
         val file = File(directory, "motionfuel-${workout.id}.png")
@@ -51,7 +50,7 @@ object ActivityShareImage {
         }
     }
 
-    private fun render(workout: WorkoutSummary, units: UnitSystem, dark: Boolean, trimEndpoints: Boolean, mapBitmap: Bitmap?): Bitmap {
+    private fun render(workout: WorkoutSummary, units: UnitSystem, dark: Boolean, mapBitmap: Bitmap?): Bitmap {
         val bitmap = Bitmap.createBitmap(Width, Height, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
         val background = if (dark) Color.rgb(8, 19, 34) else Color.rgb(246, 247, 249)
@@ -78,7 +77,7 @@ object ActivityShareImage {
         paint.color = panel
         canvas.drawRoundRect(routePanel, 42f, 42f, paint)
         if (mapBitmap == null) {
-            drawRoute(canvas, paint, routeForSharing(workout.route, trimEndpoints), routePanel, accent, secondary)
+            drawRoute(canvas, paint, workout.route, routePanel, accent, secondary)
         } else {
             // Clips the live Google map snapshot into the social card without covering its attribution.
             val checkpoint = canvas.save()
@@ -95,10 +94,6 @@ object ActivityShareImage {
         drawMetric(canvas, paint, 566f, 1060f, "ENERGY", "${workout.caloriesKcal.toInt()} kcal", foreground, secondary)
         drawMetric(canvas, paint, 64f, 1206f, "STEPS", "%d".format(Locale.US, workout.steps), foreground, secondary)
         drawMetric(canvas, paint, 566f, 1206f, "ELEVATION", "${workout.elevationGainMeters.toInt()} m", foreground, secondary)
-        paint.textSize = 22f
-        paint.color = secondary
-        paint.typeface = Typeface.DEFAULT
-        canvas.drawText(if (trimEndpoints) "Shared route trims its first and last samples" else "Shared route includes its recorded endpoints", 64f, 1320f, paint)
         return bitmap
     }
 
@@ -151,12 +146,6 @@ object ActivityShareImage {
         paint.textSize = 47f
         paint.color = foreground
         canvas.drawText(value, x, y + 58f, paint)
-    }
-
-    fun routeForSharing(route: List<GeoPoint>, trim: Boolean): List<GeoPoint> {
-        if (!trim || route.size < 10) return route
-        val count = (route.size * 0.05).toInt().coerceAtLeast(1).coerceAtMost((route.size - 2) / 2)
-        return route.drop(count).dropLast(count)
     }
 
     private fun duration(seconds: Long) = String.format(Locale.US, "%02d:%02d:%02d", seconds / 3_600, seconds / 60 % 60, seconds % 60)
