@@ -24,6 +24,14 @@ plugins {
     id("com.google.devtools.ksp")
 }
 
+// Firebase (Auth + Firestore) is initialised from google-services.json. The file carries no
+// authorisation secret (Firestore is protected by Security Rules) but is environment-specific,
+// so it is git-ignored. Apply the plugin only when the file is present; without it the app still
+// compiles and runs, showing a "configure Firebase" gate at runtime (see config/AppConfig.kt).
+if (rootProject.file("app/google-services.json").exists()) {
+    apply(plugin = "com.google.gms.google-services")
+}
+
 android {
     namespace = "com.ronitgandhi.motionfuel"
     compileSdk = 36
@@ -36,15 +44,18 @@ android {
         versionName = "0.1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        // Generates client-safe values consumed centrally by config/AppConfig.kt.
-        buildConfigField("String", "CLERK_PUBLISHABLE_KEY", configurationValue("CLERK_PUBLISHABLE_KEY").asBuildConfigString())
-        buildConfigField("String", "STRIPE_PUBLISHABLE_KEY", configurationValue("STRIPE_PUBLISHABLE_KEY").asBuildConfigString())
-        buildConfigField("String", "MEMBERSHIP_API_BASE_URL", configurationValue("MEMBERSHIP_API_BASE_URL").asBuildConfigString())
+        // Generates the client-safe Google Maps key consumed by AppConfig.kt and the manifest.
+        // Absent/blank -> maps fall back to the offline RouteCanvas; the build stays green.
+        val mapsApiKey = configurationValue("MAPS_API_KEY")
+        buildConfigField("String", "MAPS_API_KEY", mapsApiKey.asBuildConfigString())
+        manifestPlaceholders["mapsApiKey"] = mapsApiKey
     }
 
     buildTypes {
         debug {
-            applicationIdSuffix = ".debug"
+            // No applicationIdSuffix: the debug build keeps the base applicationId so it matches the
+            // single client in google-services.json. Re-add ".debug" only if you also register a
+            // com.ronitgandhi.motionfuel.debug app in Firebase and download an updated JSON.
             versionNameSuffix = "-debug"
         }
         release {
@@ -86,8 +97,17 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.9.2")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.9.2")
 
-    // Opens Stripe Customer Portal sessions in a secure in-app browser tab.
-    implementation("androidx.browser:browser:1.10.0")
+    // Firebase Authentication (identity) and Cloud Firestore (per-user cloud store), versioned by the BoM.
+    implementation(platform("com.google.firebase:firebase-bom:34.1.0"))
+    implementation("com.google.firebase:firebase-auth")
+    implementation("com.google.firebase:firebase-firestore")
+
+    // Renders the live/saved route on Google Maps when MAPS_API_KEY is configured; RouteCanvas otherwise.
+    implementation("com.google.android.gms:play-services-maps:19.2.0")
+    implementation("com.google.maps.android:maps-compose:6.7.2")
+
+    // Loads locally-picked Custom Meal photos into Compose.
+    implementation("io.coil-kt:coil-compose:2.7.0")
 
     // Supplies the Compose UI toolkit, Material 3 components and extended icons.
     implementation("androidx.compose.ui:ui:1.9.0")
@@ -105,11 +125,6 @@ dependencies {
 
     // Runs deferrable, network-constrained cloud sync as a background WorkManager job.
     implementation("androidx.work:work-runtime-ktx:2.10.1")
-
-    // Adds the Kotlin-2.2-compatible Clerk SDK for authentication and session tokens.
-    implementation("com.clerk:clerk-android:0.1.24")
-    // Adds Stripe PaymentSheet and secure Android payment handling for memberships.
-    implementation("com.stripe:stripe-android:23.15.0")
 
     // Supplies JUnit and coroutine testing support for local unit tests.
     testImplementation("junit:junit:4.13.2")

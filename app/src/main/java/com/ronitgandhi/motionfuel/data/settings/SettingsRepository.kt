@@ -36,4 +36,6 @@ class SettingsRepository(private val context: Context) {
     suspend fun setUnits(value: UnitSystem) = context.motionFuelDataStore.edit { it[Keys.Units] = value.name }
     suspend fun setRouteBackup(value: Boolean) = context.motionFuelDataStore.edit { it[Keys.RouteBackup] = value }
     suspend fun setDarkTheme(value: Boolean) = context.motionFuelDataStore.edit { it[Keys.DarkTheme] = value }
+    suspend fun setWeight(value: Double) = context.motionFuelDataStore.edit { it[Keys.Weight] = value }
+    suspend fun setGoalType(value: GoalType) = context.motionFuelDataStore.edit { it[Keys.Goal] = value.name }
 }

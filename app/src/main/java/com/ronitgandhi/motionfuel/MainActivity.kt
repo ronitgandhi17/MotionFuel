@@ -5,17 +5,19 @@ import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.DirectionsRun
 import androidx.compose.material.icons.rounded.Home
+import androidx.compose.material.icons.rounded.Insights
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.Restaurant
 import androidx.compose.material3.AlertDialog
@@ -38,18 +40,15 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.ronitgandhi.motionfuel.auth.AuthLifecycle
-import com.ronitgandhi.motionfuel.auth.ClerkAuthViewModel
 import com.ronitgandhi.motionfuel.domain.model.WorkoutStatus
 import com.ronitgandhi.motionfuel.domain.model.WorkoutType
-import com.ronitgandhi.motionfuel.membership.MembershipViewModel
 import com.ronitgandhi.motionfuel.ui.screens.ActivityScreen
-import com.ronitgandhi.motionfuel.ui.screens.AuthenticationLoadingScreen
-import com.ronitgandhi.motionfuel.ui.screens.ClerkAuthScreen
-import com.ronitgandhi.motionfuel.ui.screens.ClerkConfigurationRequiredScreen
+import com.ronitgandhi.motionfuel.ui.screens.AuthFlow
+import com.ronitgandhi.motionfuel.ui.screens.FirebaseConfigurationRequiredScreen
 import com.ronitgandhi.motionfuel.ui.screens.FoodScreen
-import com.ronitgandhi.motionfuel.ui.screens.InsightsScreen
 import com.ronitgandhi.motionfuel.ui.screens.ProfileScreen
+import com.ronitgandhi.motionfuel.ui.screens.ProfileSetupGate
+import com.ronitgandhi.motionfuel.ui.screens.ProgressScreen
 import com.ronitgandhi.motionfuel.ui.screens.TodayScreen
 import com.ronitgandhi.motionfuel.ui.screens.WorkoutScreen
 import com.ronitgandhi.motionfuel.ui.theme.MotionFuelTheme
@@ -59,39 +58,23 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            // Gates every dashboard route behind the current Clerk authentication state.
-            val authViewModel: ClerkAuthViewModel = viewModel()
-            val auth by authViewModel.state.collectAsStateWithLifecycle()
-            when (auth.lifecycle) {
-                AuthLifecycle.CONFIGURATION_REQUIRED -> MotionFuelTheme(darkTheme = true) {
-                    ClerkConfigurationRequiredScreen()
-                }
-                AuthLifecycle.LOADING -> MotionFuelTheme(darkTheme = true) {
-                    AuthenticationLoadingScreen()
-                }
-                AuthLifecycle.SIGNED_OUT -> MotionFuelTheme(darkTheme = true) {
-                    ClerkAuthScreen(
-                        state = auth,
-                        onModeChanged = authViewModel::selectMode,
-                        onSignIn = authViewModel::signIn,
-                        onSignUp = authViewModel::signUp,
-                        onVerifyEmail = authViewModel::verifyEmail,
-                    )
-                }
-                AuthLifecycle.SIGNED_IN -> {
-                    // Creates app and membership state only after Clerk confirms a signed-in user.
-                    val motionFuelViewModel: MotionFuelViewModel = viewModel()
-                    val membershipViewModel: MembershipViewModel = viewModel()
-                    val settings by motionFuelViewModel.settings.collectAsStateWithLifecycle()
-                    MotionFuelTheme(darkTheme = settings.darkTheme) {
-                        MotionFuelRoot(
-                            viewModel = motionFuelViewModel,
-                            membershipViewModel = membershipViewModel,
-                            profileName = auth.displayName,
-                            profileEmail = auth.emailAddress,
-                            onSignOut = authViewModel::signOut,
-                        )
-                    }
+            val viewModel: MotionFuelViewModel = viewModel()
+            // Without google-services.json there is no Firebase; show a configuration gate.
+            if (!viewModel.firebaseConfigured) {
+                MotionFuelTheme(darkTheme = true) { FirebaseConfigurationRequiredScreen() }
+                return@setContent
+            }
+            val user by viewModel.authUser.collectAsStateWithLifecycle()
+            val profile by viewModel.profile.collectAsStateWithLifecycle()
+            val settings by viewModel.settings.collectAsStateWithLifecycle()
+            MotionFuelTheme(darkTheme = settings.darkTheme) {
+                val currentUser = user
+                val currentProfile = profile
+                when {
+                    currentUser == null -> AuthFlow(viewModel)
+                    currentProfile == null || !currentProfile.profileComplete ->
+                        ProfileSetupGate(viewModel = viewModel, email = currentUser.email)
+                    else -> MotionFuelRoot(viewModel = viewModel, onSignOut = viewModel::signOut)
                 }
             }
         }
@@ -102,21 +85,18 @@ private enum class MainTab(val label: String, val icon: ImageVector) {
     TODAY("Today", Icons.Rounded.Home),
     ACTIVITY("Activity", Icons.Rounded.DirectionsRun),
     FOOD("Food", Icons.Rounded.Restaurant),
-    INSIGHTS("Insights", Icons.Rounded.AutoAwesome),
+    PROGRESS("Progress", Icons.Rounded.Insights),
     PROFILE("Profile", Icons.Rounded.Person),
 }
 
 @Composable
 private fun MotionFuelRoot(
     viewModel: MotionFuelViewModel,
-    membershipViewModel: MembershipViewModel,
-    profileName: String,
-    profileEmail: String?,
     onSignOut: () -> Unit,
 ) {
-    // Collects each offline-first data stream as lifecycle-aware Compose state.
     val telemetry by viewModel.telemetry.collectAsStateWithLifecycle()
     val settings by viewModel.settings.collectAsStateWithLifecycle()
+    val profile by viewModel.profile.collectAsStateWithLifecycle()
     val workouts by viewModel.workouts.collectAsStateWithLifecycle()
     val totals by viewModel.nutritionTotals.collectAsStateWithLifecycle()
     val entries by viewModel.nutritionEntries.collectAsStateWithLifecycle()
@@ -125,12 +105,15 @@ private fun MotionFuelRoot(
     val insights by viewModel.insights.collectAsStateWithLifecycle()
     val foodResults by viewModel.foodResults.collectAsStateWithLifecycle()
     val foodSearchStatus by viewModel.foodSearchStatus.collectAsStateWithLifecycle()
-    val membership by membershipViewModel.state.collectAsStateWithLifecycle()
+    val customMeals by viewModel.customMeals.collectAsStateWithLifecycle()
+    val weights by viewModel.weights.collectAsStateWithLifecycle()
+    val dailySummaries by viewModel.dailySummaries.collectAsStateWithLifecycle()
+    val maintenanceSnapshots by viewModel.maintenanceSnapshots.collectAsStateWithLifecycle()
+
     var selectedTab by remember { mutableStateOf(MainTab.TODAY) }
     var showStartDialog by remember { mutableStateOf(false) }
     var pendingRealType by remember { mutableStateOf<WorkoutType?>(null) }
 
-    // Starts real tracking only after Android grants at least one location permission.
     val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { grants ->
         val locationGranted = grants[Manifest.permission.ACCESS_FINE_LOCATION] == true || grants[Manifest.permission.ACCESS_COARSE_LOCATION] == true
         if (locationGranted) pendingRealType?.let(viewModel::startReal)
@@ -167,45 +150,57 @@ private fun MotionFuelRoot(
             Box(Modifier.fillMaxSize().padding(padding)) {
                 when (selectedTab) {
                     MainTab.TODAY -> TodayScreen(
+                        profile = profile,
+                        totals = totals,
+                        entries = entries,
                         workouts = workouts,
-                        nutrition = totals,
                         weather = weather,
                         weatherStatus = weatherStatus,
                         insights = insights,
                         settings = settings,
                         onStartWorkout = { showStartDialog = true },
                         onRefreshWeather = viewModel::refreshWeather,
-                        onOpenActivity = { selectedTab = MainTab.ACTIVITY },
                         onOpenFood = { selectedTab = MainTab.FOOD },
+                        onOpenProgress = { selectedTab = MainTab.PROGRESS },
                     )
                     MainTab.ACTIVITY -> ActivityScreen(workouts, settings) { showStartDialog = true }
                     MainTab.FOOD -> FoodScreen(
+                        profile = profile,
                         totals = totals,
                         entries = entries,
+                        customMeals = customMeals,
                         results = foodResults,
                         searchStatus = foodSearchStatus,
                         onSearch = viewModel::searchFoods,
-                        onAddFood = { viewModel.addFood(it) },
+                        onClearSearch = viewModel::clearFoodResults,
+                        onAddFood = viewModel::addFood,
                         onAddManual = viewModel::addManualFood,
+                        onLogCustomMeal = viewModel::logCustomMeal,
+                        onSaveCustomMeal = viewModel::saveCustomMeal,
+                        onDeleteCustomMeal = viewModel::deleteCustomMeal,
+                        onDeleteEntry = viewModel::deleteFood,
                     )
-                    MainTab.INSIGHTS -> InsightsScreen(insights)
+                    MainTab.PROGRESS -> ProgressScreen(
+                        profile = profile,
+                        weights = weights,
+                        dailySummaries = dailySummaries,
+                        maintenanceSnapshots = maintenanceSnapshots,
+                        insights = insights,
+                        settings = settings,
+                        onAddWeight = viewModel::addWeight,
+                        onUpdateGoal = viewModel::updateDailyGoal,
+                        onUpdateActivity = viewModel::updateActivityLevel,
+                    )
                     MainTab.PROFILE -> ProfileScreen(
-                        profileName = profileName,
-                        profileEmail = profileEmail,
+                        profile = profile,
                         settings = settings,
                         latestRoute = workouts.firstOrNull()?.route ?: emptyList(),
-                        membership = membership,
                         onUnitsChanged = viewModel::setUnits,
                         onRouteBackupChanged = viewModel::setRouteBackup,
                         onDarkThemeChanged = viewModel::setDarkTheme,
+                        onEditProfile = viewModel::editProfileBasics,
                         onDeleteData = viewModel::deleteAllLocalData,
-                        onRefreshMembership = membershipViewModel::refresh,
-                        onSubscribe = membershipViewModel::startSubscription,
-                        onManageMembership = membershipViewModel::openBillingPortal,
-                        onPaymentSheetPresented = membershipViewModel::paymentSheetPresented,
-                        onPaymentCompleted = membershipViewModel::paymentCompleted,
-                        onPaymentFailed = membershipViewModel::paymentFailed,
-                        onPortalOpened = membershipViewModel::portalOpened,
+                        onDeleteAccount = { viewModel.deleteAccount { } },
                         onSignOut = onSignOut,
                     )
                 }
@@ -243,9 +238,9 @@ private fun StartWorkoutDialog(
         shape = RoundedCornerShape(28.dp),
         title = { Text("Start workout", fontWeight = FontWeight.Bold) },
         text = {
-            androidx.compose.foundation.layout.Column {
+            Column {
                 Text("Choose the activity, then start tracking with your device sensors and GPS.")
-                androidx.compose.foundation.layout.Row {
+                Row {
                     TextButton(onClick = { type = WorkoutType.WALK }) { Text(if (type == WorkoutType.WALK) "✓ Walk" else "Walk") }
                     TextButton(onClick = { type = WorkoutType.RUN }) { Text(if (type == WorkoutType.RUN) "✓ Run" else "Run") }
                 }

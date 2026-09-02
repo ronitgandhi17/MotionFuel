@@ -15,8 +15,8 @@ object SyncScheduler {
     private const val WORK_NAME = "motionfuel-sync"
 
     fun enqueue(context: Context) {
-        // Does nothing until a signed backend URL and Clerk identity are configured.
-        if (!AppConfig.isSyncConfigured) return
+        // Does nothing until Firebase is configured; the signed-in check happens inside the worker.
+        if (!AppConfig.isFirebaseConfigured) return
         val request = OneTimeWorkRequestBuilder<SyncWorker>()
             .setConstraints(
                 Constraints.Builder()
