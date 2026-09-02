@@ -82,7 +82,7 @@ object ActivityShareImage {
         } else {
             // Clips the live Google map snapshot into the social card without covering its attribution.
             val checkpoint = canvas.save()
-            canvas.clipRoundRect(routePanel, 42f, 42f)
+            canvas.clipPath(Path().apply { addRoundRect(routePanel, 42f, 42f, Path.Direction.CW) })
             canvas.drawBitmap(mapBitmap, Rect(0, 0, mapBitmap.width, mapBitmap.height), routePanel, paint)
             canvas.restoreToCount(checkpoint)
         }
