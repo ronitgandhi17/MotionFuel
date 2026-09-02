@@ -3,6 +3,7 @@ package com.ronitgandhi.motionfuel.ui.screens
 import android.content.Intent
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -41,6 +42,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.ronitgandhi.motionfuel.domain.model.UnitSystem
 import com.ronitgandhi.motionfuel.domain.model.WorkoutSummary
+import com.ronitgandhi.motionfuel.BuildConfig
 import com.ronitgandhi.motionfuel.share.ActivityShareImage
 import com.ronitgandhi.motionfuel.ui.components.RouteMap
 import com.ronitgandhi.motionfuel.ui.components.formatDistance
@@ -62,6 +64,8 @@ fun ActivityDetailScreen(workout: WorkoutSummary, units: UnitSystem, darkTheme: 
     var trimEndpoints by remember { mutableStateOf(true) }
     var sharing by remember { mutableStateOf(false) }
     var shareError by remember { mutableStateOf<String?>(null) }
+    var shareMap by remember { mutableStateOf<com.google.android.gms.maps.GoogleMap?>(null) }
+    val sharedRoute = remember(workout.route, trimEndpoints) { ActivityShareImage.routeForSharing(workout.route, trimEndpoints) }
     val imperial = units == UnitSystem.IMPERIAL
     val pace = workout.averagePaceSecPerKm?.let { if (imperial) it * 1.609344 else it }
 
@@ -82,7 +86,13 @@ fun ActivityDetailScreen(workout: WorkoutSummary, units: UnitSystem, darkTheme: 
                 Text(workout.type.name.lowercase().replaceFirstChar(Char::uppercase), style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Black)
                 Text(SimpleDateFormat("EEEE, d MMMM yyyy • h:mm a", Locale.getDefault()).format(Date(workout.startedAtMillis)), color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            item { RouteMap(workout.route, Modifier.fillMaxWidth().height(300.dp)) }
+            item {
+                RouteMap(
+                    route = sharedRoute,
+                    modifier = Modifier.fillMaxWidth().aspectRatio(952f / 580f),
+                    onMapReady = { shareMap = it },
+                )
+            }
             item {
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     ActivityMetric("Distance", formatDistance(workout.distanceMeters, imperial), Modifier.weight(1f))
@@ -110,7 +120,7 @@ fun ActivityDetailScreen(workout: WorkoutSummary, units: UnitSystem, darkTheme: 
                 Card(shape = RoundedCornerShape(20.dp)) {
                     Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         Text("Share activity", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                        Text("Creates a 1080 × 1350 image with your route outline and activity statistics.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("Creates a 1080 × 1350 image with the map, route and activity statistics.", color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Column(Modifier.weight(1f)) {
                                 Text("Trim route endpoints", fontWeight = FontWeight.SemiBold)
@@ -122,16 +132,39 @@ fun ActivityDetailScreen(workout: WorkoutSummary, units: UnitSystem, darkTheme: 
                             onClick = {
                                 sharing = true
                                 shareError = null
-                                scope.launch {
-                                    val result = runCatching {
-                                        withContext(Dispatchers.IO) { ActivityShareImage.createShareIntent(context, workout, units, darkTheme, trimEndpoints) }
+                                val createAndShare: (android.graphics.Bitmap?) -> Unit = { mapBitmap ->
+                                    scope.launch {
+                                        val result = runCatching {
+                                            withContext(Dispatchers.IO) {
+                                                ActivityShareImage.createShareIntent(context, workout, units, darkTheme, trimEndpoints, mapBitmap)
+                                            }
+                                        }
+                                        sharing = false
+                                        result.onSuccess { context.startActivity(Intent.createChooser(it, "Share activity")) }
+                                            .onFailure { shareError = it.localizedMessage ?: "The activity image could not be created." }
                                     }
-                                    sharing = false
-                                    result.onSuccess { context.startActivity(Intent.createChooser(it, "Share activity")) }
-                                        .onFailure { shareError = it.localizedMessage ?: "The activity image could not be created." }
+                                }
+                                val currentMap = shareMap
+                                if (currentMap == null) {
+                                    createAndShare(null)
+                                } else {
+                                    runCatching {
+                                        // GoogleMap snapshots must be requested from the UI thread after its tiles finish loading.
+                                        currentMap.snapshot { bitmap ->
+                                            if (bitmap == null) {
+                                                sharing = false
+                                                shareError = "The map image is not ready yet. Please try again."
+                                            } else {
+                                                createAndShare(bitmap)
+                                            }
+                                        }
+                                    }.onFailure {
+                                        sharing = false
+                                        shareError = it.localizedMessage ?: "The map image could not be captured."
+                                    }
                                 }
                             },
-                            enabled = !sharing,
+                            enabled = !sharing && (!BuildConfig.MAPS_API_KEY_CONFIGURED || shareMap != null),
                             modifier = Modifier.fillMaxWidth().height(54.dp),
                         ) {
                             if (sharing) CircularProgressIndicator(modifier = Modifier.size(22.dp)) else {
@@ -139,6 +172,9 @@ fun ActivityDetailScreen(workout: WorkoutSummary, units: UnitSystem, darkTheme: 
                                 Spacer(Modifier.size(8.dp))
                                 Text("Share activity image")
                             }
+                        }
+                        if (BuildConfig.MAPS_API_KEY_CONFIGURED && shareMap == null && !sharing) {
+                            Text("Waiting for the map to finish loading…", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                         shareError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
                     }
