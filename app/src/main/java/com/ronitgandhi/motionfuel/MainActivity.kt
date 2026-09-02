@@ -46,6 +46,7 @@ import com.ronitgandhi.motionfuel.domain.model.WorkoutStatus
 import com.ronitgandhi.motionfuel.domain.model.WorkoutType
 import com.ronitgandhi.motionfuel.domain.model.UserProfile
 import com.ronitgandhi.motionfuel.ui.screens.ActivityScreen
+import com.ronitgandhi.motionfuel.ui.screens.AuthenticationErrorScreen
 import com.ronitgandhi.motionfuel.ui.screens.AuthenticationLoadingScreen
 import com.ronitgandhi.motionfuel.ui.screens.FirebaseAuthScreen
 import com.ronitgandhi.motionfuel.ui.screens.FirebaseConfigurationRequiredScreen
@@ -71,6 +72,13 @@ class MainActivity : ComponentActivity() {
                 }
                 AuthLifecycle.LOADING -> MotionFuelTheme(darkTheme = false) {
                     AuthenticationLoadingScreen()
+                }
+                AuthLifecycle.AUTHENTICATION_ERROR -> MotionFuelTheme(darkTheme = false) {
+                    AuthenticationErrorScreen(
+                        message = auth.message,
+                        onRetry = authViewModel::retrySessionLoad,
+                        onSignOut = authViewModel::signOut,
+                    )
                 }
                 AuthLifecycle.SIGNED_OUT -> MotionFuelTheme(darkTheme = false) {
                     FirebaseAuthScreen(
