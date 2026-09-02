@@ -20,8 +20,9 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.withTimeout
 
-enum class AuthLifecycle { CONFIGURATION_REQUIRED, LOADING, SIGNED_OUT, PROFILE_INCOMPLETE, SIGNED_IN }
+enum class AuthLifecycle { CONFIGURATION_REQUIRED, LOADING, AUTHENTICATION_ERROR, SIGNED_OUT, PROFILE_INCOMPLETE, SIGNED_IN }
 enum class AuthFormMode { SIGN_IN, SIGN_UP, FORGOT_PASSWORD }
 
 data class SignUpRequest(
@@ -188,6 +189,9 @@ class FirebaseAuthViewModel(application: Application) : AndroidViewModel(applica
         auth?.signOut()
     }
 
+    // Retries the persisted Firebase session and Firestore profile lookup after a startup failure.
+    fun retrySessionLoad() = handleUser(auth?.currentUser?.uid)
+
     // Loads the user-owned Firestore profile whenever Firebase restores or changes a session.
     private fun handleUser(uid: String?) {
         if (uid == null) {
@@ -196,14 +200,22 @@ class FirebaseAuthViewModel(application: Application) : AndroidViewModel(applica
         }
         mutableState.update { it.copy(lifecycle = AuthLifecycle.LOADING, busy = true) }
         viewModelScope.launch {
-            runCatching { requireNotNull(firestore).collection("users").document(uid).get().await() }
+            runCatching {
+                // Prevents a stalled network request from leaving the app on an endless loading screen.
+                withTimeout(15_000L) { requireNotNull(firestore).collection("users").document(uid).get().await() }
+            }
                 .onSuccess { snapshot ->
                     val profile = snapshot.toProfile(uid)
                     mutableState.value = if (profile == null) {
                         FirebaseAuthUiState(AuthLifecycle.PROFILE_INCOMPLETE, message = "Complete your profile to continue.")
                     } else FirebaseAuthUiState(AuthLifecycle.SIGNED_IN, profile = profile)
                 }
-                .onFailure(::showFailure)
+                .onFailure { failure ->
+                    mutableState.value = FirebaseAuthUiState(
+                        lifecycle = AuthLifecycle.AUTHENTICATION_ERROR,
+                        message = failure.localizedMessage ?: "Firebase did not respond. Check your connection and Firestore setup.",
+                    )
+                }
         }
     }
 

@@ -220,3 +220,18 @@ fun ProfileIncompleteScreen(
 fun AuthenticationLoadingScreen() {
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
 }
+
+@Composable
+fun AuthenticationErrorScreen(message: String?, onRetry: () -> Unit, onSignOut: () -> Unit) {
+    Box(Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
+        Card(shape = RoundedCornerShape(20.dp)) {
+            Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                BrandMark()
+                Text("Could not load your profile", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black)
+                Text(message ?: "Check your internet connection and Firebase configuration, then try again.")
+                Button(onClick = onRetry, modifier = Modifier.fillMaxWidth()) { Text("Try again") }
+                TextButton(onClick = onSignOut, modifier = Modifier.fillMaxWidth()) { Text("Sign out") }
+            }
+        }
+    }
+}
