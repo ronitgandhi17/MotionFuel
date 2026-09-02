@@ -31,6 +31,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -54,8 +55,10 @@ import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.LatLngBounds
 import com.google.android.gms.maps.model.MapStyleOptions
 import com.google.maps.android.compose.GoogleMap
+import com.google.maps.android.compose.MapEffect
 import com.google.maps.android.compose.MapProperties
 import com.google.maps.android.compose.MapUiSettings
+import com.google.maps.android.compose.MapsComposeExperimentalApi
 import com.google.maps.android.compose.Marker
 import com.google.maps.android.compose.MarkerState
 import com.google.maps.android.compose.Polyline
@@ -231,10 +234,16 @@ fun RouteCanvas(route: List<GeoPoint>, modifier: Modifier = Modifier) {
     }
 }
 
+@OptIn(MapsComposeExperimentalApi::class)
 @Composable
-fun RouteMap(route: List<GeoPoint>, modifier: Modifier = Modifier) {
+fun RouteMap(
+    route: List<GeoPoint>,
+    modifier: Modifier = Modifier,
+    onMapReady: (com.google.android.gms.maps.GoogleMap?) -> Unit = {},
+) {
     // Uses the deterministic canvas only when the developer has not configured a Maps API key.
     if (!BuildConfig.MAPS_API_KEY_CONFIGURED) {
+        LaunchedEffect(Unit) { onMapReady(null) }
         RouteCanvas(route, modifier)
         return
     }
@@ -249,7 +258,9 @@ fun RouteMap(route: List<GeoPoint>, modifier: Modifier = Modifier) {
         if (useDarkMap) MapStyleOptions.loadRawResourceStyle(context, R.raw.map_style_dark) else null
     }
     var mapLoaded by remember { mutableStateOf(false) }
-    androidx.compose.runtime.LaunchedEffect(mapLoaded, coordinates) {
+    var nativeMap by remember { mutableStateOf<com.google.android.gms.maps.GoogleMap?>(null) }
+    LaunchedEffect(mapLoaded, nativeMap) { onMapReady(nativeMap.takeIf { mapLoaded }) }
+    LaunchedEffect(mapLoaded, coordinates) {
         if (!mapLoaded) return@LaunchedEffect
         if (coordinates.size == 1) {
             cameraState.animate(CameraUpdateFactory.newLatLngZoom(coordinates.first(), 16f), 450)
@@ -266,6 +277,8 @@ fun RouteMap(route: List<GeoPoint>, modifier: Modifier = Modifier) {
             uiSettings = MapUiSettings(zoomControlsEnabled = false, compassEnabled = true),
             onMapLoaded = { mapLoaded = true },
         ) {
+            // Exposes the loaded SDK map so the activity share flow can request an attributed bitmap.
+            MapEffect(Unit) { map -> nativeMap = map }
             if (coordinates.size > 1) Polyline(points = coordinates, color = FuelGreen, width = 12f)
             coordinates.firstOrNull()?.let { Marker(state = MarkerState(it), title = "Start") }
             if (coordinates.size > 1) Marker(state = MarkerState(coordinates.last()), title = "Current position")

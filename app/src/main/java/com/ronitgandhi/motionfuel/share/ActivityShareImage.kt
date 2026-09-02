@@ -8,6 +8,7 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Path
+import android.graphics.Rect
 import android.graphics.RectF
 import android.graphics.Typeface
 import androidx.core.content.FileProvider
@@ -27,8 +28,15 @@ object ActivityShareImage {
     private const val Height = 1350
 
     // Renders a social-media-ready activity card and exposes it through a temporary content URI.
-    fun createShareIntent(context: Context, workout: WorkoutSummary, units: UnitSystem, darkTheme: Boolean, trimEndpoints: Boolean): Intent {
-        val bitmap = render(workout, units, darkTheme, trimEndpoints)
+    fun createShareIntent(
+        context: Context,
+        workout: WorkoutSummary,
+        units: UnitSystem,
+        darkTheme: Boolean,
+        trimEndpoints: Boolean,
+        mapBitmap: Bitmap? = null,
+    ): Intent {
+        val bitmap = render(workout, units, darkTheme, trimEndpoints, mapBitmap)
         val directory = File(context.cacheDir, "shared_activities").apply { mkdirs() }
         directory.listFiles()?.filter { it.name.endsWith(".png") }?.forEach(File::delete)
         val file = File(directory, "motionfuel-${workout.id}.png")
@@ -43,7 +51,7 @@ object ActivityShareImage {
         }
     }
 
-    private fun render(workout: WorkoutSummary, units: UnitSystem, dark: Boolean, trimEndpoints: Boolean): Bitmap {
+    private fun render(workout: WorkoutSummary, units: UnitSystem, dark: Boolean, trimEndpoints: Boolean, mapBitmap: Bitmap?): Bitmap {
         val bitmap = Bitmap.createBitmap(Width, Height, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
         val background = if (dark) Color.rgb(8, 19, 34) else Color.rgb(246, 247, 249)
@@ -69,7 +77,15 @@ object ActivityShareImage {
         val routePanel = RectF(64f, 238f, 1016f, 818f)
         paint.color = panel
         canvas.drawRoundRect(routePanel, 42f, 42f, paint)
-        drawRoute(canvas, paint, sharedRoute(workout.route, trimEndpoints), routePanel, accent, secondary)
+        if (mapBitmap == null) {
+            drawRoute(canvas, paint, routeForSharing(workout.route, trimEndpoints), routePanel, accent, secondary)
+        } else {
+            // Clips the live Google map snapshot into the social card without covering its attribution.
+            val checkpoint = canvas.save()
+            canvas.clipPath(Path().apply { addRoundRect(routePanel, 42f, 42f, Path.Direction.CW) })
+            canvas.drawBitmap(mapBitmap, Rect(0, 0, mapBitmap.width, mapBitmap.height), routePanel, paint)
+            canvas.restoreToCount(checkpoint)
+        }
 
         val imperial = units == UnitSystem.IMPERIAL
         val paceSeconds = workout.averagePaceSecPerKm?.let { if (imperial) it * 1.609344 else it }
@@ -137,7 +153,7 @@ object ActivityShareImage {
         canvas.drawText(value, x, y + 58f, paint)
     }
 
-    private fun sharedRoute(route: List<GeoPoint>, trim: Boolean): List<GeoPoint> {
+    fun routeForSharing(route: List<GeoPoint>, trim: Boolean): List<GeoPoint> {
         if (!trim || route.size < 10) return route
         val count = (route.size * 0.05).toInt().coerceAtLeast(1).coerceAtMost((route.size - 2) / 2)
         return route.drop(count).dropLast(count)
