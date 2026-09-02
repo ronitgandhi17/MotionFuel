@@ -1,6 +1,7 @@
 package com.ronitgandhi.motionfuel.ui.screens
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -18,6 +19,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Cloud
+import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.DeleteForever
 import androidx.compose.material.icons.rounded.DirectionsRun
 import androidx.compose.material.icons.rounded.DarkMode
@@ -198,7 +200,12 @@ private fun SummaryCard(label: String, value: String, modifier: Modifier) {
 }
 
 @Composable
-fun ActivityScreen(workouts: List<WorkoutSummary>, settings: UserSettings, onStartWorkout: () -> Unit) {
+fun ActivityScreen(
+    workouts: List<WorkoutSummary>,
+    settings: UserSettings,
+    onStartWorkout: () -> Unit,
+    onActivitySelected: (WorkoutSummary) -> Unit,
+) {
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
             Text("Activity", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Black)
@@ -213,21 +220,24 @@ fun ActivityScreen(workouts: List<WorkoutSummary>, settings: UserSettings, onSta
         }
         if (workouts.isEmpty()) item { SummaryCard("No saved activities", "Start your first workout", Modifier.fillMaxWidth()) }
         else items(workouts, key = { it.id }) { workout ->
-            Card(shape = RoundedCornerShape(18.dp)) {
+            Card(modifier = Modifier.clickable { onActivitySelected(workout) }, shape = RoundedCornerShape(18.dp)) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         Column {
                             Text(workout.type.name.lowercase().replaceFirstChar(Char::uppercase), fontWeight = FontWeight.Bold)
                             Text(SimpleDateFormat("EEE, d MMM • h:mm a", Locale.getDefault()).format(Date(workout.startedAtMillis)), style = MaterialTheme.typography.bodySmall)
                         }
-                        Text(formatDistance(workout.distanceMeters, settings.units == UnitSystem.IMPERIAL), fontWeight = FontWeight.Black)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(formatDistance(workout.distanceMeters, settings.units == UnitSystem.IMPERIAL), fontWeight = FontWeight.Black)
+                            Icon(Icons.Rounded.ChevronRight, contentDescription = "Open activity")
+                        }
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
                         SmallMetric("Time", formatDuration(workout.durationSeconds))
                         SmallMetric("Pace", "${formatPace(workout.averagePaceSecPerKm)} /km")
                         SmallMetric("Energy", "${workout.caloriesKcal.toInt()} kcal")
                     }
-                    if (workout.route.isNotEmpty()) RouteMap(workout.route, Modifier.fillMaxWidth().height(130.dp), workout.rejectedGpsPoints > 0)
+                    if (workout.route.isNotEmpty()) RouteMap(workout.route, Modifier.fillMaxWidth().height(130.dp))
                 }
             }
         }

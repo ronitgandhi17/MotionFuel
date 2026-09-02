@@ -20,7 +20,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.ChevronRight
-import androidx.compose.material.icons.rounded.LocationOff
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.Card
@@ -188,7 +187,7 @@ fun EmptyInsightCard() {
 }
 
 @Composable
-fun RouteCanvas(route: List<GeoPoint>, modifier: Modifier = Modifier, showRejectedBadge: Boolean = false) {
+fun RouteCanvas(route: List<GeoPoint>, modifier: Modifier = Modifier) {
     val grid = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f)
     val routeColor = FuelGreen
     val surface = MaterialTheme.colorScheme.surfaceVariant
@@ -229,27 +228,14 @@ fun RouteCanvas(route: List<GeoPoint>, modifier: Modifier = Modifier, showReject
                 Text("Waiting for route", style = MaterialTheme.typography.labelLarge)
             }
         }
-        if (showRejectedBadge) {
-            Surface(
-                modifier = Modifier.align(Alignment.TopEnd).padding(12.dp),
-                shape = RoundedCornerShape(14.dp),
-                color = FuelOrange.copy(alpha = 0.18f),
-            ) {
-                Row(Modifier.padding(horizontal = 10.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Rounded.LocationOff, contentDescription = null, tint = FuelOrange, modifier = Modifier.size(16.dp))
-                    Spacer(Modifier.size(6.dp))
-                    Text("GPS noise removed", style = MaterialTheme.typography.labelSmall)
-                }
-            }
-        }
     }
 }
 
 @Composable
-fun RouteMap(route: List<GeoPoint>, modifier: Modifier = Modifier, showRejectedBadge: Boolean = false) {
+fun RouteMap(route: List<GeoPoint>, modifier: Modifier = Modifier) {
     // Uses the deterministic canvas only when the developer has not configured a Maps API key.
     if (!BuildConfig.MAPS_API_KEY_CONFIGURED) {
-        RouteCanvas(route, modifier, showRejectedBadge)
+        RouteCanvas(route, modifier)
         return
     }
     val coordinates = remember(route) { route.map { LatLng(it.latitude, it.longitude) } }
@@ -291,19 +277,6 @@ fun RouteMap(route: List<GeoPoint>, modifier: Modifier = Modifier, showRejectedB
                 color = MaterialTheme.colorScheme.surface.copy(alpha = 0.90f),
             ) {
                 Text("Waiting for GPS fix", modifier = Modifier.padding(horizontal = 14.dp, vertical = 9.dp), style = MaterialTheme.typography.labelLarge)
-            }
-        }
-        if (showRejectedBadge) {
-            Surface(
-                modifier = Modifier.align(Alignment.TopEnd).padding(12.dp),
-                shape = RoundedCornerShape(14.dp),
-                color = FuelOrange.copy(alpha = 0.88f),
-            ) {
-                Row(Modifier.padding(horizontal = 10.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Rounded.LocationOff, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(Modifier.size(6.dp))
-                    Text("GPS noise removed", style = MaterialTheme.typography.labelSmall)
-                }
             }
         }
     }
