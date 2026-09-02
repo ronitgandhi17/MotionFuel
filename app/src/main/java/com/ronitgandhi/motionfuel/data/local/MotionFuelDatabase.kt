@@ -5,7 +5,7 @@ import androidx.room.RoomDatabase
 
 @Database(
     entities = [WorkoutEntity::class, NutritionEntryEntity::class, WeightEntryEntity::class],
-    version = 2,
+    version = 3,
     exportSchema = true,
 )
 abstract class MotionFuelDatabase : RoomDatabase() {
