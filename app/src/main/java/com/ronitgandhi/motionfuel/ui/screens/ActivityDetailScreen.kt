@@ -26,7 +26,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -35,7 +34,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -61,11 +59,9 @@ fun ActivityDetailScreen(workout: WorkoutSummary, units: UnitSystem, darkTheme: 
     BackHandler(onBack = onBack)
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    var trimEndpoints by remember { mutableStateOf(true) }
     var sharing by remember { mutableStateOf(false) }
     var shareError by remember { mutableStateOf<String?>(null) }
     var shareMap by remember { mutableStateOf<com.google.android.gms.maps.GoogleMap?>(null) }
-    val sharedRoute = remember(workout.route, trimEndpoints) { ActivityShareImage.routeForSharing(workout.route, trimEndpoints) }
     val imperial = units == UnitSystem.IMPERIAL
     val pace = workout.averagePaceSecPerKm?.let { if (imperial) it * 1.609344 else it }
 
@@ -88,7 +84,7 @@ fun ActivityDetailScreen(workout: WorkoutSummary, units: UnitSystem, darkTheme: 
             }
             item {
                 RouteMap(
-                    route = sharedRoute,
+                    route = workout.route,
                     modifier = Modifier.fillMaxWidth().aspectRatio(952f / 580f),
                     onMapReady = { shareMap = it },
                 )
@@ -118,15 +114,6 @@ fun ActivityDetailScreen(workout: WorkoutSummary, units: UnitSystem, darkTheme: 
             item {
                 Card(shape = RoundedCornerShape(20.dp)) {
                     Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Text("Share activity", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                        Text("Creates a 1080 × 1350 image with the map, route and activity statistics.", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Column(Modifier.weight(1f)) {
-                                Text("Trim route endpoints", fontWeight = FontWeight.SemiBold)
-                                Text("Reduces exposure of your start and finish locations.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
-                            Switch(checked = trimEndpoints, onCheckedChange = { trimEndpoints = it })
-                        }
                         Button(
                             onClick = {
                                 sharing = true
@@ -135,7 +122,7 @@ fun ActivityDetailScreen(workout: WorkoutSummary, units: UnitSystem, darkTheme: 
                                     scope.launch {
                                         val result = runCatching {
                                             withContext(Dispatchers.IO) {
-                                                ActivityShareImage.createShareIntent(context, workout, units, darkTheme, trimEndpoints, mapBitmap)
+                                                ActivityShareImage.createShareIntent(context, workout, units, darkTheme, mapBitmap)
                                             }
                                         }
                                         sharing = false
