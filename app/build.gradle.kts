@@ -86,7 +86,8 @@ dependencies {
     debugImplementation("androidx.compose.ui:ui-tooling:1.9.0")
 
     // Adds the required Google Maps Compose presentation layer for live and saved routes.
-    implementation("com.google.maps.android:maps-compose:8.4.0")
+    // Maps Compose 8.x requires compileSdk 37; 6.7.2 remains compatible with this API 36 build.
+    implementation("com.google.maps.android:maps-compose:6.7.2")
 
     // Supplies offline Room persistence, KSP code generation and DataStore preferences.
     implementation("androidx.room:room-runtime:2.7.2")
