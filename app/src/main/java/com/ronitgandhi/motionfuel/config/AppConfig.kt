@@ -1,25 +1,31 @@
 package com.ronitgandhi.motionfuel.config
 
+import com.google.firebase.FirebaseApp
 import com.ronitgandhi.motionfuel.BuildConfig
 
-// Centralises client-safe configuration generated from the ignored secrets.properties file.
+// Centralises client-safe configuration. The Maps key is generated from the ignored
+// secrets.properties file; Firebase readiness is detected at runtime from google-services.json.
 object AppConfig {
-    // Clerk publishable keys are safe for the APK and identify the Clerk application.
-    val clerkPublishableKey: String = BuildConfig.CLERK_PUBLISHABLE_KEY.trim()
+    // The Google Maps key is safe for the APK (restricted by SHA-1 + package in the Cloud console)
+    // and is consumed by the manifest meta-data and the maps-compose basemap.
+    val mapsApiKey: String = BuildConfig.MAPS_API_KEY.trim()
 
-    // Stripe publishable keys are safe for the APK and initialise Stripe PaymentSheet.
-    val stripePublishableKey: String = BuildConfig.STRIPE_PUBLISHABLE_KEY.trim()
+    // Maps render on a licensed basemap only when a real key is present; otherwise the offline
+    // RouteCanvas is used so the build always runs without a key.
+    val isMapsConfigured: Boolean = mapsApiKey.isNotBlank() &&
+        !mapsApiKey.contains("replace_me", ignoreCase = true)
 
-    // The membership API URL points to the HTTPS server that safely holds all secret keys.
-    val membershipApiBaseUrl: String = BuildConfig.MEMBERSHIP_API_BASE_URL.trim().trimEnd('/')
+    // Firebase Auth + Firestore are ready only when google-services.json was present at build time,
+    // which causes the google-services plugin to register a default FirebaseApp at startup. Without
+    // it the app still compiles and runs, showing the "configure Firebase" gate.
+    val isFirebaseConfigured: Boolean
+        get() {
+            val context = appContextHolder ?: return false
+            return FirebaseApp.getApps(context).isNotEmpty()
+        }
 
-    // This prevents placeholder values from being treated as a configured Clerk key.
-    val isClerkConfigured: Boolean = clerkPublishableKey.startsWith("pk_") &&
-        !clerkPublishableKey.contains("replace_me", ignoreCase = true)
-
-    // Stripe is ready only when both its publishable key and the secure server URL are present.
-    val isStripeConfigured: Boolean = stripePublishableKey.startsWith("pk_") &&
-        !stripePublishableKey.contains("replace_me", ignoreCase = true) &&
-        membershipApiBaseUrl.startsWith("https://") &&
-        !membershipApiBaseUrl.contains("example.com", ignoreCase = true)
+    // MotionFuelApplication assigns the application Context here during onCreate so the runtime
+    // FirebaseApp check needs no parameter at every call site.
+    @Volatile
+    var appContextHolder: android.content.Context? = null
 }

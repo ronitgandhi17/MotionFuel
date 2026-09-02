@@ -1,74 +1,56 @@
-# MotionFuel — assessed MVP foundation
+# MotionFuel
 
-MotionFuel is a context-aware Android fitness and nutrition companion built from the supplied PRD. This runnable vertical slice combines the sensor, localisation, offline data, privacy, external-data and adaptive-insight experience with Clerk identity and Stripe membership seams.
+MotionFuel is a context-aware Android fitness and nutrition companion. It is local-first (Room is the source of truth) with per-user Cloud Firestore sync, Firebase Authentication as the identity gate, live GPS workout tracking, Mifflin–St Jeor maintenance-calorie estimation, and calorie/macro logging with a calorie-history chart.
+
+The project builds and runs green with **no configuration**: without `google-services.json` it shows a "configure Firebase" gate; without a Maps key it draws routes on an offline canvas; food search works with no key.
 
 ## What is implemented
 
-- A polished Jetpack Compose interface with Today, Activity, Food, Insights and Profile destinations.
-- Clerk-backed email/password sign-in, sign-up, email verification and secure session gating.
-- Stripe PaymentSheet subscriptions, server-verified membership state and Customer Portal access.
-- Real walk/run tracking in an Android foreground service.
-- Accelerometer, gyroscope, step-counter and optional pressure-sensor sampling.
-- Platform GPS tracking with accuracy validation, Haversine distance, impossible-jump rejection, stationary-drift rejection and lightweight smoothing.
-- A hybrid stationary/walking/running classifier with confidence, evidence and two-window hysteresis.
-- Live duration, filtered route, distance, pace, cadence, elevation, calorie estimate, activity state and GPS quality.
-- A debug-only assessor trace that replays a stationary start, walk, run, fake GPS jump, hill and pace decline.
-- Eight transparent Adaptive Fuel & Effort Engine (AFEE) rules, ranked to at most two current insights.
-- Expandable “Why am I seeing this?” evidence on every generated insight.
-- Offline-first Room storage for workouts and nutrition entries.
+- Jetpack Compose + Material 3 UI with five destinations: **Today · Activity · Food · Progress · Profile**.
+- **Firebase Authentication** (email/password, password reset, optional verification) as the sole identity system and app-start gate.
+- Multi-step **Sign Up** (name, age, sex, height, weight, activity level) computing **Mifflin–St Jeor BMR + activity-factor TDEE** as estimated maintenance calories, shown separately from an editable daily calorie goal.
+- **Direct-client Cloud Firestore** at `users/{uid}/…`, protected by Security Rules (`request.auth != null && request.auth.uid == userId`).
+- Breakfast/Lunch/Dinner/Snack logging with % of daily goal, macro totals, **Custom Meal** (macros + 4/4/9 calorie prefill + optional local photo) and Open Food Facts search.
+- A **7/30-day calorie bar chart** (Compose Canvas) with historical target snapshots.
+- Real walk/run tracking in a foreground service: GPS with accuracy validation, Haversine distance, impossible-jump and stationary-drift rejection, plus a stationary/walking/running classifier.
+- **Google Maps Compose** live/saved route when `MAPS_API_KEY` is configured, with an offline `RouteMap`/`RouteCanvas` fallback otherwise.
+- Weight tracking with trend (UP/DOWN/FLAT), Progress and Maintenance-detail screens.
+- Offline-first Room storage draining a `syncState` queue to Firestore with WorkManager.
 - DataStore preferences for units, theme and detailed-route backup consent.
-- Open-Meteo weather context and Open Food Facts search, each with a no-network fallback.
-- Manual nutrition entry and live daily macro totals.
+- Open-Meteo weather from the device's last known location, with clear offline status.
 - Privacy-zone route masking preview and route-backup opt-in (off by default).
-- Unit tests for GPS filtering, sensor fusion/hysteresis, AFEE ranking and spatial privacy masking.
+- Unit tests for GPS filtering, sensor fusion/hysteresis, insight ranking, privacy masking, and the maintenance/nutrition/weight-trend algorithms.
 
 ## Open and run
 
-1. Extract the archive and open the **MotionFuel** folder—the one containing `settings.gradle.kts`—in Android Studio.
-2. Allow Gradle sync to finish. The project pins Android Gradle Plugin 9.0.1 and Gradle 9.1.0. Gradle 9.1 supports running on Java 25, but Android Studio’s Embedded JDK 17 or 21 remains the least surprising choice.
-3. If prompted, install Android SDK 36.
-4. Follow the exact key-location table in [docs/CLERK_STRIPE_SETUP.md](docs/CLERK_STRIPE_SETUP.md), then copy `secrets.properties.example` to `secrets.properties` and add only the client-safe values.
-5. Select the `app` module and the `debug` build variant.
-6. Run on an Android 10+ emulator or device. Without a Clerk publishable key, the app intentionally shows a setup screen rather than bypassing authentication.
-
-The included wrapper JAR is a small transparent bootstrap whose source is beside it at `gradle/wrapper/GradleWrapperMain.java`. It accepts only the pinned HTTPS Gradle distribution URL, downloads it once, and delegates the build.
-
-The project uses KSP 2.3.6 for Room code generation. This version is compatible with AGP 9 built-in Kotlin and avoids the legacy `kotlin.sourceSets` configuration error. Do not add `android.disallowKotlinSourceSets=false`; that only hides an outdated-plugin incompatibility.
-
-## Fast assessor demo
-
-1. Open **Today** and tap **Start walk or run**.
-2. Select **Run assessor demo**. This button exists only in debug builds.
-3. Watch the activity state stabilise, the route grow, elevation rise and the fake GPS jump get rejected.
-4. Tap **Why am I seeing this?** on an insight to reveal its evidence.
-5. Finish the workout. The summary is saved to Room before any cloud work.
-6. Open **Activity** to verify offline history, **Food** to log nutrition, and **Profile** to preview privacy masking.
-
-For a real outdoor test, choose **Use real sensors**, grant location/activity/notification access and keep the device outdoors while a usable GPS fix is acquired. Missing optional sensors degrade gracefully.
+1. Open the **MotionFuel** folder (the one containing `settings.gradle.kts`) in Android Studio.
+2. Let Gradle sync finish. Use the Embedded JDK 17 or 21.
+3. Install Android SDK 36 if prompted.
+4. (Optional) Follow [docs/FIREBASE_SETUP.md](docs/FIREBASE_SETUP.md) to enable auth + cloud sync, and copy `secrets.properties.example` to `secrets.properties` to add a client-safe `MAPS_API_KEY`.
+5. Select the `app` module and the `debug` variant.
+6. Run on an Android 10+ emulator or device. Without Firebase configured the app shows a setup gate rather than bypassing authentication.
 
 ## Build and test commands
 
-On Windows:
-
-```powershell
-.\gradlew.bat testDebugUnitTest
-.\gradlew.bat assembleDebug
-```
-
-On macOS/Linux:
+macOS/Linux:
 
 ```bash
-./gradlew testDebugUnitTest
-./gradlew assembleDebug
+./gradlew testDebugUnitTest assembleDebug
 ```
 
-The debug APK will be written beneath `app/build/outputs/apk/debug/`.
+Windows:
+
+```bash
+gradlew.bat testDebugUnitTest assembleDebug
+```
+
+The debug APK is written beneath `app/build/outputs/apk/debug/`.
 
 ## Architecture
 
 ```mermaid
 flowchart TD
-    Clerk["Clerk session"] --> UI["Compose screens"]
+    Auth["Firebase Auth session"] --> UI["Compose screens"]
     UI --> VM["MotionFuelViewModel"]
     VM --> Domain["Pure Kotlin algorithms"]
     VM --> Repo["MotionFuelRepository"]
@@ -76,27 +58,22 @@ flowchart TD
     Service --> Session["Workout session StateFlow"]
     Session --> VM
     Repo --> Room["Room source of truth"]
+    Repo --> Sync["SyncWorker · WorkManager"]
+    Sync --> Firestore["Cloud Firestore · users/{uid}"]
     VM --> DataStore["DataStore preferences"]
     VM --> APIs["Weather + food APIs"]
-    UI --> Stripe["Stripe PaymentSheet"]
-    Stripe --> Billing["Clerk-verified membership API"]
 ```
 
-The algorithms contain no Compose or database dependencies, which keeps them deterministic and directly unit-testable. Raw sensor callbacks stay in the service; the UI observes a low-frequency immutable workout model.
-
-## Intentional milestone boundary
-
-Clerk authentication and Stripe memberships are wired and require your publishable keys plus deployment of the included membership API. Cross-device workout sync, WorkManager retry and a licensed map provider remain the next milestone. The existing Room source-of-truth, `syncState` fields, route-backup consent and user-scoped cloud rules are ready for that work.
-
-See [docs/NEXT_MILESTONE.md](docs/NEXT_MILESTONE.md) for the exact implementation order.
+The algorithms contain no Compose or database dependencies, keeping them deterministic and directly unit-testable. Raw sensor callbacks stay in the service; the UI observes a low-frequency immutable workout model.
 
 ## Privacy and safety
 
-- Detailed route backup defaults to off.
+- Detailed route backup defaults to off; the detailed route is uploaded only when the toggle is on.
+- Firestore Security Rules restrict every private document to its owner (`request.auth.uid == userId`); ownership is derived from the authenticated user, never a client-supplied field.
+- Custom Meal photo URIs are local-only and never uploaded.
+- Raw high-frequency sensor traces are never uploaded.
 - Android Auto Backup excludes the database and settings file.
-- API traffic uses HTTPS.
-- No API keys or secrets are committed.
-- Clerk and Stripe publishable keys are read from ignored local configuration; all secret keys remain server-side.
-- Membership access is read from Stripe subscription state after the server verifies a Clerk JWT.
+- API traffic uses HTTPS. No API keys or secrets are committed; `google-services.json` and `secrets.properties` are git-ignored.
+- The Maps key is client-safe and restricted by SHA-1 + package name in the Google Cloud console.
 - Insights are wellness-oriented estimates and explicitly avoid diagnosis or treatment claims.
-- The application requests permissions contextually when real tracking starts.
+- Permissions are requested contextually when real tracking starts.

@@ -1,18 +1,15 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    function signedInAs(uid) {
-      return request.auth != null && request.auth.uid == uid;
+    // MotionFuel connects the Firebase client SDK directly. Every private document lives under
+    // users/{userId}/... and is readable/writable only by that authenticated user. Ownership is
+    // enforced here from the verified request.auth.uid, so a client can never reach another
+    // account's data even if it forges an owner field (NFR-10).
+    match /users/{userId}/{document=**} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
     }
 
-    match /users/{uid} {
-      allow read, create, update, delete: if signedInAs(uid);
-
-      match /{collection}/{document=**} {
-        allow read, write: if signedInAs(uid);
-      }
-    }
-
+    // Everything else is denied by default.
     match /{document=**} {
       allow read, write: if false;
     }

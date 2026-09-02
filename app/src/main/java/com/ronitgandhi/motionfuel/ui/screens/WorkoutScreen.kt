@@ -39,9 +39,9 @@ import com.ronitgandhi.motionfuel.domain.model.LocationQuality
 import com.ronitgandhi.motionfuel.domain.model.UnitSystem
 import com.ronitgandhi.motionfuel.domain.model.WorkoutStatus
 import com.ronitgandhi.motionfuel.domain.model.WorkoutTelemetry
+import com.ronitgandhi.motionfuel.core.maps.RouteMap
 import com.ronitgandhi.motionfuel.ui.components.InsightCard
 import com.ronitgandhi.motionfuel.ui.components.MetricCard
-import com.ronitgandhi.motionfuel.ui.components.RouteCanvas
 import com.ronitgandhi.motionfuel.ui.components.formatDistance
 import com.ronitgandhi.motionfuel.ui.components.formatDuration
 import com.ronitgandhi.motionfuel.ui.components.formatPace
@@ -70,11 +70,7 @@ fun WorkoutScreen(
                 Column(Modifier.weight(1f)) {
                     Text(if (complete) "Workout saved" else telemetry.type.name.lowercase().replaceFirstChar { it.uppercase() }, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black)
                     Text(
-                        when {
-                            complete -> "Committed to Room • sync can follow later"
-                            telemetry.isDemo -> "Assessor trace replay • 5× simulated time"
-                            else -> "Real sensors • foreground tracking"
-                        },
+                        if (complete) "Saved to your activity history" else "Real sensors • foreground tracking",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
@@ -91,7 +87,7 @@ fun WorkoutScreen(
             }
         }
         item {
-            RouteCanvas(telemetry.route, Modifier.fillMaxWidth().height(245.dp), telemetry.rejectedGpsPoints > 0)
+            RouteMap(telemetry.route, Modifier.fillMaxWidth().height(245.dp), telemetry.rejectedGpsPoints > 0)
         }
         item {
             Text(formatDuration(telemetry.elapsedSeconds), style = MaterialTheme.typography.displayMedium, fontWeight = FontWeight.Black)
