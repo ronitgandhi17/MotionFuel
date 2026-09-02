@@ -15,7 +15,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Flag
-import androidx.compose.material.icons.rounded.LocationOff
 import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material3.AssistChip
@@ -101,9 +100,6 @@ fun WorkoutScreen(
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     AssistChip(onClick = {}, label = { Text(telemetry.activity.type.name.lowercase()) })
                     AssistChip(onClick = {}, label = { Text("${(telemetry.activity.confidence * 100).toInt()}% confidence") })
-                }
-                if (telemetry.rejectedGpsPoints > 0) {
-                    AssistChip(onClick = {}, leadingIcon = { Icon(Icons.Rounded.LocationOff, null) }, label = { Text("${telemetry.rejectedGpsPoints} GPS samples rejected") })
                 }
             }
         }

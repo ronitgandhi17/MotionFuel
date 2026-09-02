@@ -112,7 +112,6 @@ fun ActivityDetailScreen(workout: WorkoutSummary, units: UnitSystem, darkTheme: 
                         DetailRow("Steps", workout.steps.toString())
                         DetailRow("Elevation gain", "${workout.elevationGainMeters.toInt()} m")
                         DetailRow("Dominant movement", workout.dominantActivity.name.lowercase().replaceFirstChar(Char::uppercase))
-                        DetailRow("GPS samples removed", workout.rejectedGpsPoints.toString())
                     }
                 }
             }
