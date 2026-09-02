@@ -14,6 +14,8 @@ class MotionFuelApplication : Application() {
     val database: MotionFuelDatabase by lazy {
         Room.databaseBuilder(this, MotionFuelDatabase::class.java, "motionfuel.db")
             .addMigrations(MIGRATION_1_2)
+            // Recreates incompatible development schemas instead of crashing when the home screen opens.
+            .fallbackToDestructiveMigration(dropAllTables = true)
             .build()
     }
     // Exposes a single repository for workout, nutrition and weight persistence.
