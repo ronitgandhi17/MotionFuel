@@ -38,7 +38,7 @@ import com.ronitgandhi.motionfuel.domain.model.WorkoutStatus
 import com.ronitgandhi.motionfuel.domain.model.WorkoutTelemetry
 import com.ronitgandhi.motionfuel.ui.components.InsightCard
 import com.ronitgandhi.motionfuel.ui.components.MetricCard
-import com.ronitgandhi.motionfuel.ui.components.RouteCanvas
+import com.ronitgandhi.motionfuel.ui.components.RouteMap
 import com.ronitgandhi.motionfuel.ui.components.formatDistance
 import com.ronitgandhi.motionfuel.ui.components.formatDuration
 import com.ronitgandhi.motionfuel.ui.components.formatPace
@@ -78,7 +78,7 @@ fun WorkoutScreen(
             }
         }
         item {
-            RouteCanvas(telemetry.route, Modifier.fillMaxWidth().height(245.dp), telemetry.rejectedGpsPoints > 0)
+            RouteMap(telemetry.route, Modifier.fillMaxWidth().height(245.dp), telemetry.rejectedGpsPoints > 0)
         }
         item {
             Text(formatDuration(telemetry.elapsedSeconds), style = MaterialTheme.typography.displayMedium, fontWeight = FontWeight.Black)

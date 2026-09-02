@@ -11,6 +11,7 @@ import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ShowChart
@@ -63,24 +64,25 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
+            val systemDarkTheme = isSystemInDarkTheme()
             // Gates every dashboard route behind the current Firebase authentication state.
             val authViewModel: FirebaseAuthViewModel = viewModel()
             val auth by authViewModel.state.collectAsStateWithLifecycle()
             when (auth.lifecycle) {
-                AuthLifecycle.CONFIGURATION_REQUIRED -> MotionFuelTheme(darkTheme = false) {
+                AuthLifecycle.CONFIGURATION_REQUIRED -> MotionFuelTheme(darkTheme = systemDarkTheme) {
                     FirebaseConfigurationRequiredScreen()
                 }
-                AuthLifecycle.LOADING -> MotionFuelTheme(darkTheme = false) {
+                AuthLifecycle.LOADING -> MotionFuelTheme(darkTheme = systemDarkTheme) {
                     AuthenticationLoadingScreen()
                 }
-                AuthLifecycle.AUTHENTICATION_ERROR -> MotionFuelTheme(darkTheme = false) {
+                AuthLifecycle.AUTHENTICATION_ERROR -> MotionFuelTheme(darkTheme = systemDarkTheme) {
                     AuthenticationErrorScreen(
                         message = auth.message,
                         onRetry = authViewModel::retrySessionLoad,
                         onSignOut = authViewModel::signOut,
                     )
                 }
-                AuthLifecycle.SIGNED_OUT -> MotionFuelTheme(darkTheme = false) {
+                AuthLifecycle.SIGNED_OUT -> MotionFuelTheme(darkTheme = systemDarkTheme) {
                     FirebaseAuthScreen(
                         state = auth,
                         onModeChanged = authViewModel::selectMode,
@@ -89,7 +91,7 @@ class MainActivity : ComponentActivity() {
                         onResetPassword = authViewModel::resetPassword,
                     )
                 }
-                AuthLifecycle.PROFILE_INCOMPLETE -> MotionFuelTheme(darkTheme = false) {
+                AuthLifecycle.PROFILE_INCOMPLETE -> MotionFuelTheme(darkTheme = systemDarkTheme) {
                     ProfileIncompleteScreen(
                         busy = auth.busy,
                         message = auth.message,

@@ -38,14 +38,31 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.google.android.gms.maps.CameraUpdateFactory
+import com.google.android.gms.maps.model.CameraPosition
+import com.google.android.gms.maps.model.LatLng
+import com.google.android.gms.maps.model.LatLngBounds
+import com.google.android.gms.maps.model.MapStyleOptions
+import com.google.maps.android.compose.GoogleMap
+import com.google.maps.android.compose.MapProperties
+import com.google.maps.android.compose.MapUiSettings
+import com.google.maps.android.compose.Marker
+import com.google.maps.android.compose.MarkerState
+import com.google.maps.android.compose.Polyline
+import com.google.maps.android.compose.rememberCameraPositionState
+import com.ronitgandhi.motionfuel.BuildConfig
+import com.ronitgandhi.motionfuel.R
 import com.ronitgandhi.motionfuel.domain.model.GeoPoint
 import com.ronitgandhi.motionfuel.domain.model.Insight
 import com.ronitgandhi.motionfuel.domain.model.InsightPriority
@@ -220,6 +237,70 @@ fun RouteCanvas(route: List<GeoPoint>, modifier: Modifier = Modifier, showReject
             ) {
                 Row(Modifier.padding(horizontal = 10.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Rounded.LocationOff, contentDescription = null, tint = FuelOrange, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.size(6.dp))
+                    Text("GPS noise removed", style = MaterialTheme.typography.labelSmall)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun RouteMap(route: List<GeoPoint>, modifier: Modifier = Modifier, showRejectedBadge: Boolean = false) {
+    // Uses the deterministic canvas only when the developer has not configured a Maps API key.
+    if (!BuildConfig.MAPS_API_KEY_CONFIGURED) {
+        RouteCanvas(route, modifier, showRejectedBadge)
+        return
+    }
+    val coordinates = remember(route) { route.map { LatLng(it.latitude, it.longitude) } }
+    val initialPosition = coordinates.lastOrNull() ?: LatLng(-37.8136, 144.9631)
+    val cameraState = rememberCameraPositionState {
+        position = CameraPosition.fromLatLngZoom(initialPosition, if (coordinates.isEmpty()) 12f else 16f)
+    }
+    val context = LocalContext.current
+    val useDarkMap = MaterialTheme.colorScheme.background.luminance() < 0.5f
+    val mapStyle = remember(useDarkMap) {
+        if (useDarkMap) MapStyleOptions.loadRawResourceStyle(context, R.raw.map_style_dark) else null
+    }
+    var mapLoaded by remember { mutableStateOf(false) }
+    androidx.compose.runtime.LaunchedEffect(mapLoaded, coordinates) {
+        if (!mapLoaded) return@LaunchedEffect
+        if (coordinates.size == 1) {
+            cameraState.animate(CameraUpdateFactory.newLatLngZoom(coordinates.first(), 16f), 450)
+        } else {
+            val bounds = LatLngBounds.builder().apply { coordinates.forEach(::include) }.build()
+            cameraState.animate(CameraUpdateFactory.newLatLngBounds(bounds, 72), 450)
+        }
+    }
+    Box(modifier.clip(RoundedCornerShape(26.dp))) {
+        GoogleMap(
+            modifier = Modifier.fillMaxSize(),
+            cameraPositionState = cameraState,
+            properties = MapProperties(mapStyleOptions = mapStyle),
+            uiSettings = MapUiSettings(zoomControlsEnabled = false, compassEnabled = true),
+            onMapLoaded = { mapLoaded = true },
+        ) {
+            if (coordinates.size > 1) Polyline(points = coordinates, color = FuelGreen, width = 12f)
+            coordinates.firstOrNull()?.let { Marker(state = MarkerState(it), title = "Start") }
+            if (coordinates.size > 1) Marker(state = MarkerState(coordinates.last()), title = "Current position")
+        }
+        if (coordinates.isEmpty()) {
+            Surface(
+                modifier = Modifier.align(Alignment.Center),
+                shape = RoundedCornerShape(14.dp),
+                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.90f),
+            ) {
+                Text("Waiting for GPS fix", modifier = Modifier.padding(horizontal = 14.dp, vertical = 9.dp), style = MaterialTheme.typography.labelLarge)
+            }
+        }
+        if (showRejectedBadge) {
+            Surface(
+                modifier = Modifier.align(Alignment.TopEnd).padding(12.dp),
+                shape = RoundedCornerShape(14.dp),
+                color = FuelOrange.copy(alpha = 0.88f),
+            ) {
+                Row(Modifier.padding(horizontal = 10.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Rounded.LocationOff, contentDescription = null, modifier = Modifier.size(16.dp))
                     Spacer(Modifier.size(6.dp))
                     Text("GPS noise removed", style = MaterialTheme.typography.labelSmall)
                 }

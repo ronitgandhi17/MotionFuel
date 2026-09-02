@@ -75,6 +75,7 @@ import com.ronitgandhi.motionfuel.ui.components.BrandMark
 import com.ronitgandhi.motionfuel.ui.components.EmptyInsightCard
 import com.ronitgandhi.motionfuel.ui.components.InsightCard
 import com.ronitgandhi.motionfuel.ui.components.RouteCanvas
+import com.ronitgandhi.motionfuel.ui.components.RouteMap
 import com.ronitgandhi.motionfuel.ui.components.formatDistance
 import com.ronitgandhi.motionfuel.ui.components.formatDuration
 import com.ronitgandhi.motionfuel.ui.components.formatPace
@@ -226,7 +227,7 @@ fun ActivityScreen(workouts: List<WorkoutSummary>, settings: UserSettings, onSta
                         SmallMetric("Pace", "${formatPace(workout.averagePaceSecPerKm)} /km")
                         SmallMetric("Energy", "${workout.caloriesKcal.toInt()} kcal")
                     }
-                    if (workout.route.isNotEmpty()) RouteCanvas(workout.route, Modifier.fillMaxWidth().height(130.dp), workout.rejectedGpsPoints > 0)
+                    if (workout.route.isNotEmpty()) RouteMap(workout.route, Modifier.fillMaxWidth().height(130.dp), workout.rejectedGpsPoints > 0)
                 }
             }
         }
