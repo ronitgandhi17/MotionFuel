@@ -7,9 +7,11 @@
 | TDEE onboarding | Implemented | Multi-step profile fields and pure Mifflin–St Jeor use case |
 | Firestore profile | Implemented | `users/{uid}` write/read, verified-owner/schema rules and Emulator CI tests |
 | MyFitnessPal-inspired UI | Implemented foundation | Today equation card, meal diary, quick actions and Progress cards |
-| Calorie trends | Implemented locally | Day/Week/Month Compose Canvas bar graph |
-| Weight trends | Implemented locally | Room table/migration, Add Weight and Day/Week/Month bar graph |
-| Saved food photos | Implemented locally | System document picker, validated persistent content URI, Room saved-food table and reusable thumbnail cards |
+| Calorie trends | Implemented locally | Compose Canvas bar graph with an independent Day/Week/Month selector |
+| Weight trends | Implemented locally | Room table/migration, Add Weight and an independent Day/Week/Month selector |
+| Saved food photos | Implemented locally | Camera/Photo Picker choice, private FileProvider camera URI, Room saved-food table and reusable thumbnail cards |
+| Saved food detail/share | Implemented | Tappable detail page, nutrition breakdown, add-to-meal and Android image/text share sheet |
+| Saved food swipe actions | Implemented | Right swipe opens Add to today meal selection; left swipe opens deletion confirmation |
 | Swipe navigation | Implemented | Horizontal pager synchronised with all five bottom-navigation destinations |
 | GPS indicator removal | Implemented | No user-facing GPS status badge; filtering remains internal |
 | Workout service and sensors | Retained | Foreground GPS, accelerometer, gyroscope and step counter |

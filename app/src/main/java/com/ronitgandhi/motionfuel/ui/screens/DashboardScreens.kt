@@ -259,11 +259,11 @@ fun ProgressScreen(
     insights: List<Insight>,
     onAddWeight: (Double) -> Unit,
 ) {
-    var range by remember { mutableStateOf(ProgressRange.WEEK) }
+    var calorieRange by remember { mutableStateOf(ProgressRange.WEEK) }
+    var weightRange by remember { mutableStateOf(ProgressRange.WEEK) }
     var showWeightDialog by remember { mutableStateOf(false) }
-    val days = range.days
-    val caloriePoints = remember(nutritionHistory, days, profile.dailyCalorieGoalKcal) { calorieTrend(nutritionHistory, days, profile.dailyCalorieGoalKcal) }
-    val weightPoints = remember(weightEntries, days) { weightTrend(weightEntries, days) }
+    val caloriePoints = remember(nutritionHistory, calorieRange, profile.dailyCalorieGoalKcal) { calorieTrend(nutritionHistory, calorieRange.days, profile.dailyCalorieGoalKcal) }
+    val weightPoints = remember(weightEntries, weightRange) { weightTrend(weightEntries, weightRange.days) }
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         item {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -275,21 +275,14 @@ fun ProgressScreen(
             }
         }
         item {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                ProgressRange.entries.forEach { option ->
-                    FilterChip(selected = range == option, onClick = { range = option }, label = { Text(option.label) })
-                }
-            }
-        }
-        item {
             val calories = caloriePoints.sumOf { it.value ?: 0.0 }
-            val summary = if (range == ProgressRange.DAY) "${calories.toInt()} kcal today" else "${calories.div(days).toInt()} kcal daily average"
-            TrendCard("Calories", summary, caloriePoints, "kcal", FuelBlue, showTarget = true)
+            val summary = if (calorieRange == ProgressRange.DAY) "${calories.toInt()} kcal today" else "${calories.div(calorieRange.days).toInt()} kcal daily average"
+            TrendCard("Calories", summary, caloriePoints, "kcal", FuelBlue, calorieRange, { calorieRange = it }, showTarget = true)
         }
         item {
             val values = weightPoints.mapNotNull { it.value }
             val change = if (values.size >= 2) values.last() - values.first() else null
-            TrendCard("Weight", change?.let { "${values.last().format(1)} kg • ${it.signed(1)} kg" } ?: "${profile.weightKg.format(1)} kg current", weightPoints, "kg", FuelGreen)
+            TrendCard("Weight", change?.let { "${values.last().format(1)} kg • ${it.signed(1)} kg" } ?: "${profile.weightKg.format(1)} kg current", weightPoints, "kg", FuelGreen, weightRange, { weightRange = it })
         }
         item {
             Card(shape = RoundedCornerShape(18.dp)) {
@@ -324,12 +317,26 @@ private enum class ProgressRange(val label: String, val days: Int) {
 }
 
 @Composable
-private fun TrendCard(title: String, summary: String, points: List<TrendPoint>, suffix: String, color: Color, showTarget: Boolean = false) {
+private fun TrendCard(
+    title: String,
+    summary: String,
+    points: List<TrendPoint>,
+    suffix: String,
+    color: Color,
+    range: ProgressRange,
+    onRangeChanged: (ProgressRange) -> Unit,
+    showTarget: Boolean = false,
+) {
     var selected by remember(points) { mutableStateOf<TrendPoint?>(null) }
     Card(shape = RoundedCornerShape(18.dp)) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             Text(summary, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                ProgressRange.entries.forEach { option ->
+                    FilterChip(selected = range == option, onClick = { onRangeChanged(option) }, label = { Text(option.label) })
+                }
+            }
             TrendBarChart(points, color, showTarget, Modifier.fillMaxWidth().height(190.dp)) { selected = it }
             selected?.let {
                 val date = SimpleDateFormat("EEE, d MMM", Locale.getDefault()).format(Date(it.timestampMillis))

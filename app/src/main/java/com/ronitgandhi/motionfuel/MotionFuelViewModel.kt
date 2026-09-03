@@ -211,6 +211,16 @@ class MotionFuelViewModel(application: Application) : AndroidViewModel(applicati
         viewModelScope.launch { addSavedFoodToDiary(food, mealType, System.currentTimeMillis()) }
     }
 
+    fun deleteSavedFood(food: SavedFood) {
+        viewModelScope.launch {
+            repository.deleteFood(food.id)
+            val uri = food.photoUri?.let(android.net.Uri::parse)
+            if (uri?.authority == "${getApplication<Application>().packageName}.fileprovider") {
+                runCatching { getApplication<Application>().contentResolver.delete(uri, null, null) }
+            }
+        }
+    }
+
     // Stores a dated weight locally so Progress remains available offline.
     fun addWeight(weightKg: Double) {
         if (weightKg !in 30.0..350.0) return
