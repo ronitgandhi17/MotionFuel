@@ -333,7 +333,7 @@ private fun DiaryFoodRow(entry: NutritionEntry, onRequestDelete: () -> Unit) {
         },
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface).padding(vertical = 6.dp),
+            modifier = Modifier.fillMaxWidth().background(CardDefaults.cardColors().containerColor).padding(vertical = 6.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
             Text(entry.name, style = MaterialTheme.typography.bodyMedium)

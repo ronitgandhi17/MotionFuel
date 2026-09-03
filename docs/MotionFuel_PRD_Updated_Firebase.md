@@ -4,7 +4,7 @@
 **Primary stack:** Kotlin, Android Studio, Jetpack Compose, Material Design 3, Firebase Authentication, Cloud Firestore, Firebase Storage, Room, DataStore, Retrofit/OkHttp, Google Maps SDK for Android  
 **Target platform:** Android 10+ (API 29+) for the university build, with graceful feature degradation when optional sensors are unavailable  
 **Architecture:** Feature-oriented Clean Architecture + MVVM  
-**Document status:** Version 1.7 — daily meal-entry swipe deletion revision, September 2026
+**Document status:** Version 1.8 — meal-card visual continuity revision, September 2026
 
 ---
 
@@ -2618,6 +2618,7 @@ DataStore changes theme/units immediately without app restart.
 | FR-48 | Tapping a saved food shall open its detail page; Add to meal shall then ask the user to choose Breakfast, Lunch or Dinner before adding it, while Share food shall open Android's system share sheet. |
 | FR-49 | Swiping a saved food right shall open an Add to today meal selector, while swiping left shall require confirmation before deleting the saved food. |
 | FR-50 | Within today's Breakfast, Lunch, Dinner and Snack cards, swiping a logged food left shall expose Delete; confirmation shall remove only that diary entry and recalculate the meal and daily nutrition totals without deleting its reusable saved-food record. |
+| FR-51 | A logged diary-food row shall visually inherit its containing meal card colour in light and dark themes; the destructive background shall be visible only while swiping left. |
 
 ---
 
@@ -3974,6 +3975,7 @@ Avoid comments/followers/complex ranking until everything above works.
 - [ ] Tapping a saved food opens a detail page where Add to meal asks for Breakfast, Lunch or Dinner before saving, alongside the Android share action.
 - [ ] Swiping a saved food right opens Add to today with meal selection; swiping left asks for confirmation before deletion.
 - [ ] Swiping a food left within today's Breakfast, Lunch, Dinner or Snack card asks for confirmation and removes only that day's diary entry, with totals recalculated automatically.
+- [ ] Logged-food rows blend into their meal card in both themes and reveal the destructive colour only during a left swipe.
 - [ ] Nutrition totals remain available offline after being saved.
 - [ ] The Calories and Weight cards each provide their own working Day, Week and Month selector and may display different selected periods.
 - [ ] Calorie bars show historical target references and weight bars never treat missing measurements as zero.
