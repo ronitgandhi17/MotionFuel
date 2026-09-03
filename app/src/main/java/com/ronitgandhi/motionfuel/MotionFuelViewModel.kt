@@ -6,6 +6,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.ronitgandhi.motionfuel.domain.algorithm.AdaptiveInsightEngine
+import com.ronitgandhi.motionfuel.domain.algorithm.FoodPhotoPolicy
 import com.ronitgandhi.motionfuel.domain.model.ActivityType
 import com.ronitgandhi.motionfuel.domain.model.DailyContext
 import com.ronitgandhi.motionfuel.domain.model.FoodSearchResult
@@ -13,6 +14,7 @@ import com.ronitgandhi.motionfuel.domain.model.Insight
 import com.ronitgandhi.motionfuel.domain.model.MealType
 import com.ronitgandhi.motionfuel.domain.model.NutritionEntry
 import com.ronitgandhi.motionfuel.domain.model.NutritionTotals
+import com.ronitgandhi.motionfuel.domain.model.SavedFood
 import com.ronitgandhi.motionfuel.domain.model.UnitSystem
 import com.ronitgandhi.motionfuel.domain.model.UserSettings
 import com.ronitgandhi.motionfuel.domain.model.WeatherContext
@@ -74,6 +76,11 @@ class MotionFuelViewModel(application: Application) : AndroidViewModel(applicati
             emptyList(),
         )
     val weightEntries: StateFlow<List<WeightEntry>> = repository.observeWeightEntries(thirtyDaysAgo).stateIn(
+        viewModelScope,
+        SharingStarted.WhileSubscribed(5_000),
+        emptyList(),
+    )
+    val savedFoods: StateFlow<List<SavedFood>> = repository.observeSavedFoods().stateIn(
         viewModelScope,
         SharingStarted.WhileSubscribed(5_000),
         emptyList(),
@@ -182,19 +189,26 @@ class MotionFuelViewModel(application: Application) : AndroidViewModel(applicati
         }
     }
 
-    fun addManualFood(name: String, calories: Double, protein: Double, carbs: Double, fat: Double, mealType: MealType) {
-        addFood(
-            FoodSearchResult(
-                providerId = "manual-${UUID.randomUUID()}",
-                name = name.ifBlank { "Manual food" },
-                servingLabel = "1 serving",
-                caloriesKcal = calories.coerceAtLeast(0.0),
-                proteinG = protein.coerceAtLeast(0.0),
-                carbohydratesG = carbs.coerceAtLeast(0.0),
-                fatG = fat.coerceAtLeast(0.0),
-            ),
-            mealType,
+    fun addManualFood(name: String, calories: Double, protein: Double, carbs: Double, fat: Double, mealType: MealType, photoUri: String?) {
+        val now = System.currentTimeMillis()
+        val saved = SavedFood(
+            id = UUID.randomUUID().toString(),
+            name = name.ifBlank { "Manual food" },
+            caloriesKcal = calories.coerceAtLeast(0.0),
+            proteinG = protein.coerceAtLeast(0.0),
+            carbohydratesG = carbs.coerceAtLeast(0.0),
+            fatG = fat.coerceAtLeast(0.0),
+            photoUri = FoodPhotoPolicy.sanitize(photoUri),
+            createdAtMillis = now,
         )
+        viewModelScope.launch {
+            repository.saveFood(saved)
+            addSavedFoodToDiary(saved, mealType, now)
+        }
+    }
+
+    fun addSavedFood(food: SavedFood, mealType: MealType) {
+        viewModelScope.launch { addSavedFoodToDiary(food, mealType, System.currentTimeMillis()) }
     }
 
     // Stores a dated weight locally so Progress remains available offline.
@@ -215,6 +229,7 @@ class MotionFuelViewModel(application: Application) : AndroidViewModel(applicati
 
     fun startReal(type: WorkoutType) {
         workoutStartedAtMillis = System.currentTimeMillis()
+        refreshWeather()
         demoPlayer.stop(reset = true)
         val intent = Intent(getApplication(), WorkoutTrackingService::class.java).apply {
             action = WorkoutTrackingService.ACTION_START
@@ -271,7 +286,33 @@ class MotionFuelViewModel(application: Application) : AndroidViewModel(applicati
     fun setRouteBackup(value: Boolean) = viewModelScope.launch { settingsRepository.setRouteBackup(value) }
     fun setDarkTheme(value: Boolean) = viewModelScope.launch { settingsRepository.setDarkTheme(value) }
     fun setProfileWeight(value: Double) = viewModelScope.launch { settingsRepository.setWeight(value) }
-    fun deleteAllLocalData() = viewModelScope.launch { repository.deleteAllLocalData() }
+    fun deleteAllLocalData() = viewModelScope.launch {
+        // Releases persisted photo grants when the user deletes all locally stored data.
+        savedFoods.value.mapNotNull { it.photoUri }.distinct().forEach { value ->
+            runCatching {
+                getApplication<Application>().contentResolver.releasePersistableUriPermission(
+                    android.net.Uri.parse(value),
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION,
+                )
+            }
+        }
+        repository.deleteAllLocalData()
+    }
+
+    private suspend fun addSavedFoodToDiary(food: SavedFood, mealType: MealType, consumedAtMillis: Long) {
+        repository.saveNutrition(
+            NutritionEntry(
+                id = UUID.randomUUID().toString(),
+                name = food.name,
+                caloriesKcal = food.caloriesKcal,
+                proteinG = food.proteinG,
+                carbohydratesG = food.carbohydratesG,
+                fatG = food.fatG,
+                mealType = mealType,
+                consumedAtMillis = consumedAtMillis,
+            ),
+        )
+    }
 
     private fun distinctActiveDays(history: List<WorkoutSummary>, daysAgo: IntRange): Int {
         val now = Calendar.getInstance()

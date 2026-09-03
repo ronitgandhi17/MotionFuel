@@ -106,6 +106,17 @@ data class FoodSearchResult(
     val fatG: Double,
 )
 
+data class SavedFood(
+    val id: String,
+    val name: String,
+    val caloriesKcal: Double,
+    val proteinG: Double,
+    val carbohydratesG: Double,
+    val fatG: Double,
+    val photoUri: String?,
+    val createdAtMillis: Long,
+)
+
 data class NutritionTotals(
     val caloriesKcal: Double = 0.0,
     val proteinG: Double = 0.0,

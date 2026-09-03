@@ -53,3 +53,15 @@ interface WeightDao {
     @Query("DELETE FROM weight_entries")
     suspend fun deleteAll()
 }
+
+@Dao
+interface SavedFoodDao {
+    @Query("SELECT * FROM saved_foods ORDER BY createdAtMillis DESC")
+    fun observeAll(): Flow<List<SavedFoodEntity>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(food: SavedFoodEntity)
+
+    @Query("DELETE FROM saved_foods")
+    suspend fun deleteAll()
+}

@@ -48,3 +48,15 @@ data class WeightEntryEntity(
     val recordedAtMillis: Long,
     val syncState: String = "PENDING",
 )
+
+@Entity(tableName = "saved_foods")
+data class SavedFoodEntity(
+    @PrimaryKey val id: String,
+    val name: String,
+    val caloriesKcal: Double,
+    val proteinG: Double,
+    val carbohydratesG: Double,
+    val fatG: Double,
+    val photoUri: String?,
+    val createdAtMillis: Long,
+)

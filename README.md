@@ -12,7 +12,10 @@ MotionFuel is a Kotlin/Jetpack Compose fitness and nutrition app that combines F
 - MyFitnessPal-inspired light-first Today, Diary and Progress information hierarchy with original MotionFuel branding.
 - `Goal − Food + Exercise = Remaining` calorie summary and separate maintenance-calorie value.
 - Breakfast, Lunch, Dinner and Snacks diary sections with meal-specific food logging.
-- Separate 7-day/30-day calorie and weight bar graphs drawn with Compose Canvas.
+- Separate Day/Week/Month calorie and weight bar graphs drawn with Compose Canvas.
+- Swipe navigation across Today, Activity, Food, Progress and Profile, synchronised with the bottom bar.
+- Manual foods with optional system-picked photos, a persistent My saved foods list and one-tap diary reuse.
+- Live weather temperature, humidity, wind and rain context on the Track Activity screen.
 - Room migration and offline weight-history persistence.
 - User-facing GPS quality indicator removed while internal point validation and drift rejection remain active.
 - Tappable saved activities with a detailed Google Maps route and workout-statistics summary.
@@ -64,7 +67,7 @@ See [docs/SECURITY_TEST_REPORT.md](docs/SECURITY_TEST_REPORT.md) for the execute
 3. Add foods to different Diary meals and show immediate calorie/macronutrient changes.
 4. Run the debug-only deterministic workout trace and show the filtered route and sensor-derived metrics.
 5. Tap a saved Activity to open its full summary, then use **Share activity image** to open Android's share sheet.
-6. Add a weight in Progress and switch between 7-day and 30-day calorie/weight bar graphs.
+6. Add a weight in Progress and switch between Day, Week and Month calorie/weight bar graphs.
 7. Reopen the app offline to demonstrate Room-backed history.
 
 ## Privacy
