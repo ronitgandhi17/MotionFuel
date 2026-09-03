@@ -4,7 +4,7 @@
 **Primary stack:** Kotlin, Android Studio, Jetpack Compose, Material Design 3, Firebase Authentication, Cloud Firestore, Firebase Storage, Room, DataStore, Retrofit/OkHttp, Google Maps SDK for Android  
 **Target platform:** Android 10+ (API 29+) for the university build, with graceful feature degradation when optional sensors are unavailable  
 **Architecture:** Feature-oriented Clean Architecture + MVVM  
-**Document status:** Version 1.5 — camera/gallery food capture, saved-food swipe actions and independent progress-range revision, September 2026
+**Document status:** Version 1.7 — daily meal-entry swipe deletion revision, September 2026
 
 ---
 
@@ -1207,7 +1207,7 @@ Chart interactions:
 
 Tapping a My saved foods card opens a dedicated detail page containing the captured image, food name, calories, protein, carbohydrates and fat. The page provides:
 
-- an **Add to [meal]** action that reuses the saved nutrition values;
+- an **Add to meal** action that asks the user to choose Breakfast, Lunch or Dinner before reusing the saved nutrition values;
 - a **Share food** action that opens Android's system share sheet;
 - the food photo plus a concise nutrition summary when a photo exists;
 - a text-only nutrition summary when the food has no photo.
@@ -1220,6 +1220,8 @@ Saved-food list gestures provide quick actions with confirmation:
 - swipe left opens a delete confirmation;
 - deleting a saved food does not delete historical diary entries;
 - deleting a camera-captured food also removes its app-private image, while a gallery source image is never deleted from the user's gallery.
+
+Foods already logged in today's Breakfast, Lunch, Dinner or Snack card remain independently editable. Swiping a diary row left reveals **Delete** and opens a confirmation dialog. Confirming removes only that dated nutrition entry; it preserves the reusable item in **My saved foods**, then Room's observable queries recalculate the affected meal calories, energy total and macronutrient totals.
 
 ### 16.10 Offline behaviour
 
@@ -2613,8 +2615,9 @@ DataStore changes theme/units immediately without app restart.
 | FR-45 | Manual food creation shall offer Camera and Gallery sources, use system activity-result contracts without broad media permission, persist only a validated content URI and display the thumbnail in My saved foods. |
 | FR-46 | A saved manual food shall be reusable from My saved foods in any selected meal without re-entering its nutrition values. |
 | FR-47 | The live Track Activity screen shall display the current or cached weather temperature, humidity, wind and rain state. |
-| FR-48 | Tapping a saved food shall open its detail page, from which the user can add it to the selected meal or share its image and nutrition summary through Android's system share sheet. |
+| FR-48 | Tapping a saved food shall open its detail page; Add to meal shall then ask the user to choose Breakfast, Lunch or Dinner before adding it, while Share food shall open Android's system share sheet. |
 | FR-49 | Swiping a saved food right shall open an Add to today meal selector, while swiping left shall require confirmation before deleting the saved food. |
+| FR-50 | Within today's Breakfast, Lunch, Dinner and Snack cards, swiping a logged food left shall expose Delete; confirmation shall remove only that diary entry and recalculate the meal and daily nutrition totals without deleting its reusable saved-food record. |
 
 ---
 
@@ -3968,8 +3971,9 @@ Avoid comments/followers/complex ranking until everything above works.
 - [ ] Breakfast, Lunch and Dinner show their own calorie totals.
 - [ ] Food search returns real remote database results.
 - [ ] A Custom Meal offers Camera or Gallery, can be saved with carbs/fat/protein and an optional picture, appears in My saved foods and can be reused in any meal.
-- [ ] Tapping a saved food opens a detail page with its photo, nutrition values, add-to-meal action and Android share action.
+- [ ] Tapping a saved food opens a detail page where Add to meal asks for Breakfast, Lunch or Dinner before saving, alongside the Android share action.
 - [ ] Swiping a saved food right opens Add to today with meal selection; swiping left asks for confirmation before deletion.
+- [ ] Swiping a food left within today's Breakfast, Lunch, Dinner or Snack card asks for confirmation and removes only that day's diary entry, with totals recalculated automatically.
 - [ ] Nutrition totals remain available offline after being saved.
 - [ ] The Calories and Weight cards each provide their own working Day, Week and Month selector and may display different selected periods.
 - [ ] Calorie bars show historical target references and weight bars never treat missing measurements as zero.

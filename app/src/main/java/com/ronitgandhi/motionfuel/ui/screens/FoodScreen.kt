@@ -89,6 +89,7 @@ fun FoodScreen(
     onAddFood: (FoodSearchResult, MealType) -> Unit,
     onAddManual: (String, Double, Double, Double, Double, MealType, String?) -> Unit,
     onAddSavedFood: (SavedFood, MealType) -> Unit,
+    onDeleteNutritionEntry: (NutritionEntry) -> Unit,
     onDeleteSavedFood: (SavedFood) -> Unit,
 ) {
     val context = LocalContext.current
@@ -98,6 +99,7 @@ fun FoodScreen(
     var selectedSavedFood by remember { mutableStateOf<SavedFood?>(null) }
     var pendingAddFood by remember { mutableStateOf<SavedFood?>(null) }
     var pendingDeleteFood by remember { mutableStateOf<SavedFood?>(null) }
+    var pendingDeleteEntry by remember { mutableStateOf<NutritionEntry?>(null) }
     var selectedPhotoUri by remember { mutableStateOf<String?>(null) }
     var selectedPhotoFile by remember { mutableStateOf<File?>(null) }
     val cameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { captured ->
@@ -119,9 +121,11 @@ fun FoodScreen(
     selectedSavedFood?.let { food ->
         SavedFoodDetailScreen(
             food = food,
-            meal = selectedMeal,
             onBack = { selectedSavedFood = null },
-            onAdd = { onAddSavedFood(food, selectedMeal) },
+            onAdd = { meal ->
+                selectedMeal = meal
+                onAddSavedFood(food, meal)
+            },
             onShare = { shareSavedFood(context, food) },
         )
         return
@@ -160,10 +164,7 @@ fun FoodScreen(
                             Text("${entries.filter { it.mealType == meal }.sumOf { it.caloriesKcal }.toInt()} kcal", fontWeight = FontWeight.Bold)
                         }
                         entries.filter { it.mealType == meal }.forEach { entry ->
-                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                Text(entry.name, style = MaterialTheme.typography.bodyMedium)
-                                Text(entry.caloriesKcal.toInt().toString(), style = MaterialTheme.typography.bodyMedium)
-                            }
+                            DiaryFoodRow(entry = entry, onRequestDelete = { pendingDeleteEntry = entry })
                         }
                         TextButton(onClick = { selectedMeal = meal }) { Icon(Icons.Rounded.Add, null); Text("Add food") }
                     }
@@ -290,6 +291,55 @@ fun FoodScreen(
             dismissButton = { TextButton(onClick = { pendingDeleteFood = null }) { Text("Cancel") } },
         )
     }
+    pendingDeleteEntry?.let { entry ->
+        AlertDialog(
+            onDismissRequest = { pendingDeleteEntry = null },
+            title = { Text("Delete diary food?") },
+            text = { Text("${entry.name} will be removed from today's ${entry.mealType.name.lowercase()} meal.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    onDeleteNutritionEntry(entry)
+                    pendingDeleteEntry = null
+                }) { Text("Delete", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = { TextButton(onClick = { pendingDeleteEntry = null }) { Text("Cancel") } },
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+// Presents a left-swipe delete affordance while deferring deletion until confirmation.
+private fun DiaryFoodRow(entry: NutritionEntry, onRequestDelete: () -> Unit) {
+    val dismissState = rememberSwipeToDismissBoxState(
+        confirmValueChange = { value ->
+            if (value == SwipeToDismissBoxValue.EndToStart) onRequestDelete()
+            false
+        },
+    )
+    SwipeToDismissBox(
+        state = dismissState,
+        enableDismissFromStartToEnd = false,
+        backgroundContent = {
+            Row(
+                modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.errorContainer).padding(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(Icons.Rounded.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.onErrorContainer)
+                Spacer(Modifier.size(6.dp))
+                Text("Delete", color = MaterialTheme.colorScheme.onErrorContainer, fontWeight = FontWeight.Bold)
+            }
+        },
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface).padding(vertical = 6.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Text(entry.name, style = MaterialTheme.typography.bodyMedium)
+            Text(entry.caloriesKcal.toInt().toString(), style = MaterialTheme.typography.bodyMedium)
+        }
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -373,7 +423,8 @@ private fun AddSavedFoodToDayDialog(food: SavedFood, initialMeal: MealType, onDi
 }
 
 @Composable
-private fun SavedFoodDetailScreen(food: SavedFood, meal: MealType, onBack: () -> Unit, onAdd: () -> Unit, onShare: () -> Unit) {
+private fun SavedFoodDetailScreen(food: SavedFood, onBack: () -> Unit, onAdd: (MealType) -> Unit, onShare: () -> Unit) {
+    var showMealSelector by remember(food.id) { mutableStateOf(false) }
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(20.dp),
@@ -408,10 +459,10 @@ private fun SavedFoodDetailScreen(food: SavedFood, meal: MealType, onBack: () ->
             }
         }
         item {
-            Button(onClick = onAdd, modifier = Modifier.fillMaxWidth().height(56.dp)) {
+            Button(onClick = { showMealSelector = true }, modifier = Modifier.fillMaxWidth().height(56.dp)) {
                 Icon(Icons.Rounded.Add, contentDescription = null)
                 Spacer(Modifier.size(8.dp))
-                Text("Add to ${meal.name.lowercase().replaceFirstChar(Char::uppercase)}")
+                Text("Add to meal")
             }
         }
         item {
@@ -422,6 +473,39 @@ private fun SavedFoodDetailScreen(food: SavedFood, meal: MealType, onBack: () ->
             }
         }
     }
+    if (showMealSelector) {
+        SelectDetailMealDialog(
+            food = food,
+            onDismiss = { showMealSelector = false },
+        ) { meal ->
+            onAdd(meal)
+            showMealSelector = false
+        }
+    }
+}
+
+@Composable
+private fun SelectDetailMealDialog(food: SavedFood, onDismiss: () -> Unit, onAdd: (MealType) -> Unit) {
+    var meal by remember(food.id) { mutableStateOf(MealType.BREAKFAST) }
+    val mealOptions = listOf(MealType.BREAKFAST, MealType.LUNCH, MealType.DINNER)
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Add ${food.name} to meal") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Choose where to add this food in today's diary.")
+                mealOptions.forEach { option ->
+                    FilterChip(
+                        selected = meal == option,
+                        onClick = { meal = option },
+                        label = { Text(option.name.lowercase().replaceFirstChar(Char::uppercase)) },
+                    )
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = { onAdd(meal) }) { Text("Add") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+    )
 }
 
 @Composable

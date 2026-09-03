@@ -74,6 +74,8 @@ class MotionFuelRepository(
         ),
     )
 
+    suspend fun deleteNutrition(id: String) = nutritionDao.deleteById(id)
+
     suspend fun saveWeight(entry: WeightEntry) = weightDao.upsert(
         WeightEntryEntity(entry.id, entry.weightKg, entry.recordedAtMillis),
     )

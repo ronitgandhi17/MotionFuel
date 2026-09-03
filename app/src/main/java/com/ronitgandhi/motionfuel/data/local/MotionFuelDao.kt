@@ -38,6 +38,10 @@ interface NutritionDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(entry: NutritionEntryEntity)
 
+    // Deletes exactly one logged meal entry without changing its reusable saved-food source.
+    @Query("DELETE FROM nutrition_entries WHERE id = :id")
+    suspend fun deleteById(id: String)
+
     @Query("DELETE FROM nutrition_entries")
     suspend fun deleteAll()
 }

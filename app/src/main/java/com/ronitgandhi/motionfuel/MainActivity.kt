@@ -250,6 +250,7 @@ private fun MotionFuelRoot(
                         onAddFood = viewModel::addFood,
                         onAddManual = viewModel::addManualFood,
                         onAddSavedFood = viewModel::addSavedFood,
+                        onDeleteNutritionEntry = viewModel::deleteNutritionEntry,
                         onDeleteSavedFood = viewModel::deleteSavedFood,
                     )
                     MainTab.PROGRESS -> ProgressScreen(
