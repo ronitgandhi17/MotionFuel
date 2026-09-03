@@ -44,8 +44,50 @@ class SecurityConfigurationTest {
         val rules = File("../firestore.rules").readText()
         assertTrue(rules.contains("request.auth != null"))
         assertTrue(rules.contains("request.auth.uid == uid"))
+        assertTrue(rules.contains("request.auth.token.email_verified == true"))
+        assertTrue(rules.contains("data.keys().hasOnly"))
         assertTrue(rules.contains("match /{document=**}"))
         assertTrue(rules.contains("allow read, write: if false"))
+    }
+
+    @Test
+    fun backupRulesExcludeRoomDataStoreAndShareCacheFromTransfer() {
+        val rules = appFile("res/xml/data_extraction_rules.xml")
+        assertTrue(rules.contains("domain=\"file\" path=\"datastore/motionfuel.preferences_pb\""))
+        assertTrue(rules.contains("domain=\"cache\" path=\"shared_activities/\""))
+        assertFalse(rules.contains("domain=\"sharedpref\" path=\"motionfuel.preferences_pb\""))
+    }
+
+    @Test
+    fun appCheckProvidersAreVariantSpecific() {
+        val build = File("build.gradle.kts").readText()
+        assertTrue(build.contains("debugImplementation(\"com.google.firebase:firebase-appcheck-debug\")"))
+        assertTrue(build.contains("releaseImplementation(\"com.google.firebase:firebase-appcheck-playintegrity\")"))
+    }
+
+    @Test
+    fun authenticationRequiresVerifiedEmailAndRefreshesTheToken() {
+        val source = appFile("java/com/ronitgandhi/motionfuel/auth/FirebaseAuthViewModel.kt")
+        assertTrue(source.contains("if (!user.isEmailVerified)"))
+        assertTrue(source.contains("AuthLifecycle.EMAIL_VERIFICATION_REQUIRED"))
+        assertTrue(source.contains("getIdToken(true).await()"))
+    }
+
+    @Test
+    fun workoutNotificationHidesDetailsOnTheLockScreen() {
+        val source = appFile("java/com/ronitgandhi/motionfuel/service/WorkoutTrackingService.kt")
+        assertTrue(source.contains("setVisibility(NotificationCompat.VISIBILITY_PRIVATE)"))
+        assertTrue(source.contains("setPublicVersion"))
+    }
+
+    @Test
+    fun completeRouteSharingRequiresConfirmationAndExpiresCachedImages() {
+        val screen = appFile("java/com/ronitgandhi/motionfuel/ui/screens/ActivityDetailScreen.kt")
+        val renderer = appFile("java/com/ronitgandhi/motionfuel/share/ActivityShareImage.kt")
+        assertTrue(screen.contains("Share complete route?"))
+        assertTrue(screen.contains("start and finish locations"))
+        assertTrue(renderer.contains("RetentionMillis"))
+        assertTrue(renderer.contains("deleteExpiredFiles"))
     }
 
     @Test

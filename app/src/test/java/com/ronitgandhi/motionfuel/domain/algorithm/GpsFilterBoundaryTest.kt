@@ -27,9 +27,19 @@ class GpsFilterBoundaryTest {
 
     @Test
     fun invalidAccuracyValuesAreRejected() {
-        listOf(-1f, 0f, 40.01f, Float.NaN, Float.POSITIVE_INFINITY).forEach { accuracy ->
+        listOf(-1f, 0f, 40.01f, Float.POSITIVE_INFINITY).forEach { accuracy ->
             assertFalse(GpsFilter().evaluate(point(accuracy = accuracy), ActivityType.WALKING).accepted)
         }
+    }
+
+    @Test
+    fun nanAccuracyIsRejected() {
+        assertFalse(GpsFilter().evaluate(point(accuracy = Float.NaN), ActivityType.WALKING).accepted)
+    }
+
+    @Test
+    fun nonFiniteAltitudeIsRejected() {
+        assertFalse(GpsFilter().evaluate(point().copy(altitudeMeters = Double.NaN), ActivityType.WALKING).accepted)
     }
 
     @Test

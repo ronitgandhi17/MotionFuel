@@ -21,6 +21,7 @@ import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -62,8 +63,44 @@ fun ActivityDetailScreen(workout: WorkoutSummary, units: UnitSystem, darkTheme: 
     var sharing by remember { mutableStateOf(false) }
     var shareError by remember { mutableStateOf<String?>(null) }
     var shareMap by remember { mutableStateOf<com.google.android.gms.maps.GoogleMap?>(null) }
+    var confirmFullRouteShare by remember { mutableStateOf(false) }
     val imperial = units == UnitSystem.IMPERIAL
     val pace = workout.averagePaceSecPerKm?.let { if (imperial) it * 1.609344 else it }
+    val beginShare = {
+        sharing = true
+        shareError = null
+        val createAndShare: (android.graphics.Bitmap?) -> Unit = { mapBitmap ->
+            scope.launch {
+                val result = runCatching {
+                    withContext(Dispatchers.IO) {
+                        ActivityShareImage.createShareIntent(context, workout, units, darkTheme, mapBitmap)
+                    }
+                }
+                sharing = false
+                result.onSuccess { context.startActivity(Intent.createChooser(it, "Share activity")) }
+                    .onFailure { shareError = it.localizedMessage ?: "The activity image could not be created." }
+            }
+        }
+        val currentMap = shareMap
+        if (currentMap == null) {
+            createAndShare(null)
+        } else {
+            runCatching {
+                // GoogleMap snapshots must be requested from the UI thread after its tiles finish loading.
+                currentMap.snapshot { bitmap ->
+                    if (bitmap == null) {
+                        sharing = false
+                        shareError = "The map image is not ready yet. Please try again."
+                    } else {
+                        createAndShare(bitmap)
+                    }
+                }
+            }.onFailure {
+                sharing = false
+                shareError = it.localizedMessage ?: "The map image could not be captured."
+            }
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -115,41 +152,7 @@ fun ActivityDetailScreen(workout: WorkoutSummary, units: UnitSystem, darkTheme: 
                 Card(shape = RoundedCornerShape(20.dp)) {
                     Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         Button(
-                            onClick = {
-                                sharing = true
-                                shareError = null
-                                val createAndShare: (android.graphics.Bitmap?) -> Unit = { mapBitmap ->
-                                    scope.launch {
-                                        val result = runCatching {
-                                            withContext(Dispatchers.IO) {
-                                                ActivityShareImage.createShareIntent(context, workout, units, darkTheme, mapBitmap)
-                                            }
-                                        }
-                                        sharing = false
-                                        result.onSuccess { context.startActivity(Intent.createChooser(it, "Share activity")) }
-                                            .onFailure { shareError = it.localizedMessage ?: "The activity image could not be created." }
-                                    }
-                                }
-                                val currentMap = shareMap
-                                if (currentMap == null) {
-                                    createAndShare(null)
-                                } else {
-                                    runCatching {
-                                        // GoogleMap snapshots must be requested from the UI thread after its tiles finish loading.
-                                        currentMap.snapshot { bitmap ->
-                                            if (bitmap == null) {
-                                                sharing = false
-                                                shareError = "The map image is not ready yet. Please try again."
-                                            } else {
-                                                createAndShare(bitmap)
-                                            }
-                                        }
-                                    }.onFailure {
-                                        sharing = false
-                                        shareError = it.localizedMessage ?: "The map image could not be captured."
-                                    }
-                                }
-                            },
+                            onClick = { confirmFullRouteShare = true },
                             enabled = !sharing && (!BuildConfig.MAPS_API_KEY_CONFIGURED || shareMap != null),
                             modifier = Modifier.fillMaxWidth().height(54.dp),
                         ) {
@@ -167,6 +170,23 @@ fun ActivityDetailScreen(workout: WorkoutSummary, units: UnitSystem, darkTheme: 
                 }
             }
         }
+    }
+
+    if (confirmFullRouteShare) {
+        AlertDialog(
+            onDismissRequest = { confirmFullRouteShare = false },
+            title = { Text("Share complete route?") },
+            text = { Text("The image includes the complete route, including its start and finish locations. Only share it with people and apps you trust.") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        confirmFullRouteShare = false
+                        beginShare()
+                    },
+                ) { Text("Share") }
+            },
+            dismissButton = { TextButton(onClick = { confirmFullRouteShare = false }) { Text("Cancel") } },
+        )
     }
 }
 

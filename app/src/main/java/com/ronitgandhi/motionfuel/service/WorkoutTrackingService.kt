@@ -299,6 +299,14 @@ class WorkoutTrackingService : Service(), SensorEventListener, LocationListener 
         .setSmallIcon(R.drawable.ic_launcher_foreground)
         .setContentTitle("MotionFuel is tracking")
         .setContentText(text)
+        .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
+        .setPublicVersion(
+            NotificationCompat.Builder(this, CHANNEL_ID)
+                .setSmallIcon(R.drawable.ic_launcher_foreground)
+                .setContentTitle("MotionFuel is active")
+                .setContentText("Open the app to view workout details")
+                .build(),
+        )
         .setOnlyAlertOnce(true)
         .setOngoing(true)
         .build()

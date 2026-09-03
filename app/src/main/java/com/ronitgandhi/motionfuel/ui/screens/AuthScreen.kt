@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -179,6 +180,32 @@ fun FirebaseConfigurationRequiredScreen() {
                 BrandMark()
                 Text("Connect Firebase", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black)
                 Text("Register com.ronitgandhi.motionfuel in Firebase, enable Email/Password Authentication, then place google-services.json inside the app folder and rebuild.")
+            }
+        }
+    }
+}
+
+@Composable
+fun EmailVerificationRequiredScreen(
+    email: String?,
+    busy: Boolean,
+    message: String?,
+    onRefresh: () -> Unit,
+    onResend: () -> Unit,
+    onSignOut: () -> Unit,
+) {
+    Box(Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
+        Card(shape = RoundedCornerShape(20.dp)) {
+            Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                BrandMark()
+                Text("Verify your email", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black)
+                Text("Open the verification link sent to ${email ?: "your email address"}, then return here.")
+                Button(onClick = onRefresh, enabled = !busy, modifier = Modifier.fillMaxWidth()) {
+                    if (busy) CircularProgressIndicator(modifier = Modifier.size(22.dp)) else Text("I've verified my email")
+                }
+                TextButton(onClick = onResend, enabled = !busy, modifier = Modifier.fillMaxWidth()) { Text("Resend email") }
+                message?.let { Text(it, color = MaterialTheme.colorScheme.primary) }
+                TextButton(onClick = onSignOut, modifier = Modifier.fillMaxWidth()) { Text("Use another account") }
             }
         }
     }

@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.google.firebase.FirebaseApp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseAuth.AuthStateListener
+import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.auth.UserProfileChangeRequest
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
@@ -22,7 +23,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withTimeout
 
-enum class AuthLifecycle { CONFIGURATION_REQUIRED, LOADING, AUTHENTICATION_ERROR, SIGNED_OUT, PROFILE_INCOMPLETE, SIGNED_IN }
+enum class AuthLifecycle { CONFIGURATION_REQUIRED, LOADING, AUTHENTICATION_ERROR, SIGNED_OUT, EMAIL_VERIFICATION_REQUIRED, PROFILE_INCOMPLETE, SIGNED_IN }
 enum class AuthFormMode { SIGN_IN, SIGN_UP, FORGOT_PASSWORD }
 
 data class SignUpRequest(
@@ -43,6 +44,7 @@ data class FirebaseAuthUiState(
     val busy: Boolean = false,
     val message: String? = null,
     val profile: UserProfile? = null,
+    val verificationEmail: String? = null,
 )
 
 class FirebaseAuthViewModel(application: Application) : AndroidViewModel(application) {
@@ -52,7 +54,7 @@ class FirebaseAuthViewModel(application: Application) : AndroidViewModel(applica
     private val firebaseReady = FirebaseApp.getApps(application).isNotEmpty()
     private val auth: FirebaseAuth? = if (firebaseReady) FirebaseAuth.getInstance() else null
     private val firestore: FirebaseFirestore? = if (firebaseReady) FirebaseFirestore.getInstance() else null
-    private val authListener = AuthStateListener { firebaseAuth -> handleUser(firebaseAuth.currentUser?.uid) }
+    private val authListener = AuthStateListener { firebaseAuth -> handleUser(firebaseAuth.currentUser) }
 
     init {
         // Keeps Compose navigation synchronized with Firebase's persisted authentication session.
@@ -104,11 +106,11 @@ class FirebaseAuthViewModel(application: Application) : AndroidViewModel(applica
                     dailyCalorieGoalKcal = calories.tdeeKcal,
                 )
                 requireNotNull(firestore).collection("users").document(user.uid).set(profile.toFirestore()).await()
-                runCatching { user.sendEmailVerification().await() }
+                val verificationSent = runCatching { user.sendEmailVerification().await() }.isSuccess
                 mutableState.value = FirebaseAuthUiState(
-                    lifecycle = AuthLifecycle.SIGNED_IN,
-                    profile = profile,
-                    message = "Account created. Check your inbox for a verification email.",
+                    lifecycle = AuthLifecycle.EMAIL_VERIFICATION_REQUIRED,
+                    verificationEmail = user.email,
+                    message = if (verificationSent) "Verification email sent." else "Use Resend email to request a new verification link.",
                 )
             }.onFailure { failure ->
                 val accountExists = auth?.currentUser != null
@@ -189,15 +191,49 @@ class FirebaseAuthViewModel(application: Application) : AndroidViewModel(applica
         auth?.signOut()
     }
 
+    fun resendVerificationEmail() {
+        val user = auth?.currentUser ?: return
+        mutableState.update { it.copy(busy = true, message = null) }
+        viewModelScope.launch {
+            runCatching { user.sendEmailVerification().await() }
+                .onSuccess { mutableState.update { it.copy(busy = false, message = "Verification email sent.") } }
+                .onFailure(::showFailure)
+        }
+    }
+
+    fun refreshEmailVerification() {
+        val user = auth?.currentUser ?: return
+        mutableState.update { it.copy(busy = true, message = null) }
+        viewModelScope.launch {
+            runCatching {
+                user.reload().await()
+                auth?.currentUser?.also { refreshed ->
+                    if (refreshed.isEmailVerified) refreshed.getIdToken(true).await()
+                }
+            }
+                .onSuccess(::handleUser)
+                .onFailure(::showFailure)
+        }
+    }
+
     // Retries the persisted Firebase session and Firestore profile lookup after a startup failure.
-    fun retrySessionLoad() = handleUser(auth?.currentUser?.uid)
+    fun retrySessionLoad() = handleUser(auth?.currentUser)
 
     // Loads the user-owned Firestore profile whenever Firebase restores or changes a session.
-    private fun handleUser(uid: String?) {
-        if (uid == null) {
+    private fun handleUser(user: FirebaseUser?) {
+        if (user == null) {
             mutableState.value = FirebaseAuthUiState(AuthLifecycle.SIGNED_OUT)
             return
         }
+        if (!user.isEmailVerified) {
+            mutableState.value = FirebaseAuthUiState(
+                lifecycle = AuthLifecycle.EMAIL_VERIFICATION_REQUIRED,
+                verificationEmail = user.email,
+                message = "Verify your email before opening MotionFuel.",
+            )
+            return
+        }
+        val uid = user.uid
         mutableState.update { it.copy(lifecycle = AuthLifecycle.LOADING, busy = true) }
         viewModelScope.launch {
             runCatching {

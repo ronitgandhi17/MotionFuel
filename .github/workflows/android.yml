@@ -16,7 +16,31 @@ jobs:
       - uses: android-actions/setup-android@v3
       - name: Install Android SDK
         run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
+      - name: Android lint
+        run: |
+          chmod +x gradlew
+          ./gradlew lintDebug
       - name: Test and assemble
         run: |
           chmod +x gradlew
-          ./gradlew testDebugUnitTest assembleDebug
+          ./gradlew testDebugUnitTest assembleDebug assembleRelease
+
+  firestore-rules:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: firebase-tests/package-lock.json
+      - name: Install pinned Firebase test tools
+        working-directory: firebase-tests
+        run: npm ci --ignore-scripts
+      - name: Test Firestore security rules
+        working-directory: firebase-tests
+        run: npm test

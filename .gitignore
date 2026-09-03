@@ -13,3 +13,5 @@ app/google-services.json
 secrets.properties
 backend/.env
 backend/node_modules/
+firebase-tests/node_modules/
+firebase-debug.log

@@ -38,6 +38,15 @@ class SensorAndInsightBoundaryTest {
     }
 
     @Test
+    fun nonFiniteSensorValuesCannotEscapeClassifier() {
+        listOf(Double.NaN, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY).forEach { invalid ->
+            val result = classifier.classify(SensorFeatureWindow(invalid, invalid, invalid, invalid, invalid, 10f))
+            assertTrue(result.confidence.isFinite())
+            assertTrue(result.confidence in 0f..1f)
+        }
+    }
+
+    @Test
     fun stabilizerRequiresConsecutiveCandidateWindowsAndCanReset() {
         val stabilizer = ActivityStateStabilizer(2)
         val running = ActivityClassification(ActivityType.RUNNING, 0.9f, emptyList())
@@ -81,5 +90,17 @@ class SensorAndInsightBoundaryTest {
     fun energyEstimatorMatchesMetFormulaAndZeroDuration() {
         assertEquals(0.0, EnergyEstimator.calories(75.0, 0, ActivityType.RUNNING), 0.0)
         assertEquals(8.3 * 3.5 * 75.0 / 200.0 * 30.0, EnergyEstimator.calories(75.0, 1_800, ActivityType.RUNNING), 0.000001)
+    }
+
+    @Test
+    fun negativeDurationCannotProduceNegativeCalories() {
+        assertTrue(EnergyEstimator.calories(75.0, -1, ActivityType.RUNNING) >= 0.0)
+    }
+
+    @Test
+    fun invalidWeightProducesZeroCalories() {
+        listOf(-1.0, 0.0, Double.NaN, Double.POSITIVE_INFINITY).forEach { weight ->
+            assertEquals(0.0, EnergyEstimator.calories(weight, 600, ActivityType.RUNNING), 0.0)
+        }
     }
 }
