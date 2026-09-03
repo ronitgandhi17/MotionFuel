@@ -35,10 +35,11 @@ class SecurityConfigurationTest {
     }
 
     @Test
-    fun foodPhotoUsesCameraContractWithoutBroadCameraOrMediaPermission() {
+    fun foodPhotoUsesSystemCameraOrPhotoPickerWithoutBroadPermissions() {
         val manifest = appFile("AndroidManifest.xml")
         val screen = appFile("java/com/ronitgandhi/motionfuel/ui/screens/FoodScreen.kt")
         assertTrue(screen.contains("ActivityResultContracts.TakePicture()"))
+        assertTrue(screen.contains("ActivityResultContracts.PickVisualMedia()"))
         assertFalse(screen.contains("ActivityResultContracts.OpenDocument()"))
         assertFalse(manifest.contains("android.permission.CAMERA"))
         assertFalse(manifest.contains("android.permission.READ_MEDIA_IMAGES"))

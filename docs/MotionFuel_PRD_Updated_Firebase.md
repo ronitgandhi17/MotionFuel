@@ -4,7 +4,7 @@
 **Primary stack:** Kotlin, Android Studio, Jetpack Compose, Material Design 3, Firebase Authentication, Cloud Firestore, Firebase Storage, Room, DataStore, Retrofit/OkHttp, Google Maps SDK for Android  
 **Target platform:** Android 10+ (API 29+) for the university build, with graceful feature degradation when optional sensors are unavailable  
 **Architecture:** Feature-oriented Clean Architecture + MVVM  
-**Document status:** Version 1.4 — direct-camera food capture, saved-food sharing and independent progress-range revision, September 2026
+**Document status:** Version 1.5 — camera/gallery food capture, saved-food swipe actions and independent progress-range revision, September 2026
 
 ---
 
@@ -1171,9 +1171,10 @@ The user can override the calculated value because labels, fibre, sugar alcohols
 
 Photo implementation for MVP:
 
-- launch the device camera directly through Android's `TakePicture` activity-result contract;
-- write the result through a non-exported FileProvider into the app-private `food_photos` directory without broad camera or media-library permission;
-- persist the validated FileProvider `content://` URI in the local `SavedFood` record and display its thumbnail in **My saved foods**;
+- ask the user to choose **Camera** or **Gallery** when adding a picture;
+- launch the device camera through Android's `TakePicture` contract and write its result through a non-exported FileProvider into the app-private `food_photos` directory;
+- launch Android's system Photo Picker for gallery selection without broad media-library permission;
+- persist only a validated `content://` URI in the local `SavedFood` record and display its thumbnail in **My saved foods**;
 - do not require broad media-library permission;
 - cloud image backup is Phase 2.
 
@@ -1212,6 +1213,13 @@ Tapping a My saved foods card opens a dedicated detail page containing the captu
 - a text-only nutrition summary when the food has no photo.
 
 The share intent grants temporary read access only to the selected image URI. The FileProvider remains non-exported and exposes only the dedicated app-private food-photo and activity-share directories.
+
+Saved-food list gestures provide quick actions with confirmation:
+
+- swipe right opens an **Add to today** dialog where Breakfast, Lunch, Dinner or Snack is selected;
+- swipe left opens a delete confirmation;
+- deleting a saved food does not delete historical diary entries;
+- deleting a camera-captured food also removes its app-private image, while a gallery source image is never deleted from the user's gallery.
 
 ### 16.10 Offline behaviour
 
@@ -2602,10 +2610,11 @@ DataStore changes theme/units immediately without app restart.
 | FR-42 | Before sharing, the system shall warn that the complete route includes start and finish locations; cancelling shall produce no share action. |
 | FR-43 | Firebase App Check shall use a debug provider in debug builds and Play Integrity in release builds. |
 | FR-44 | The main Today, Activity, Food, Progress and Profile destinations shall support left/right swipe navigation synchronised with the bottom navigation bar. |
-| FR-45 | Manual food creation shall open the device camera directly, save the captured image through the private FileProvider, persist only its validated content URI and display the thumbnail in My saved foods. |
+| FR-45 | Manual food creation shall offer Camera and Gallery sources, use system activity-result contracts without broad media permission, persist only a validated content URI and display the thumbnail in My saved foods. |
 | FR-46 | A saved manual food shall be reusable from My saved foods in any selected meal without re-entering its nutrition values. |
 | FR-47 | The live Track Activity screen shall display the current or cached weather temperature, humidity, wind and rain state. |
 | FR-48 | Tapping a saved food shall open its detail page, from which the user can add it to the selected meal or share its image and nutrition summary through Android's system share sheet. |
+| FR-49 | Swiping a saved food right shall open an Add to today meal selector, while swiping left shall require confirmation before deleting the saved food. |
 
 ---
 
@@ -2687,7 +2696,7 @@ DataStore changes theme/units immediately without app restart.
 > As a user eating homemade food, I want to save my own meal with macros and a photo.
 
 **Given** a provider food is not suitable  
-**When** I enter a name/macros and take a photo with the device camera
+**When** I enter a name/macros and choose Camera or Gallery for an optional picture
 **Then** the meal and optional picture appear in My saved foods and can be opened, shared or added again to Breakfast, Lunch, Dinner or Snack.
 
 ### US-07 — See my calorie and weight trends
@@ -3958,8 +3967,9 @@ Avoid comments/followers/complex ranking until everything above works.
 - [ ] App Check uses debug attestation for debug builds and Play Integrity for release builds; production enforcement is enabled after registration.
 - [ ] Breakfast, Lunch and Dinner show their own calorie totals.
 - [ ] Food search returns real remote database results.
-- [ ] A Custom Meal opens the camera directly, can be saved with carbs/fat/protein and an optional picture, appears in My saved foods and can be reused in any meal.
+- [ ] A Custom Meal offers Camera or Gallery, can be saved with carbs/fat/protein and an optional picture, appears in My saved foods and can be reused in any meal.
 - [ ] Tapping a saved food opens a detail page with its photo, nutrition values, add-to-meal action and Android share action.
+- [ ] Swiping a saved food right opens Add to today with meal selection; swiping left asks for confirmation before deletion.
 - [ ] Nutrition totals remain available offline after being saved.
 - [ ] The Calories and Weight cards each provide their own working Day, Week and Month selector and may display different selected periods.
 - [ ] Calorie bars show historical target references and weight bars never treat missing measurements as zero.

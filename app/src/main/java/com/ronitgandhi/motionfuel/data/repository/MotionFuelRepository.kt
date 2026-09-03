@@ -82,6 +82,8 @@ class MotionFuelRepository(
         SavedFoodEntity(food.id, food.name, food.caloriesKcal, food.proteinG, food.carbohydratesG, food.fatG, food.photoUri, food.createdAtMillis),
     )
 
+    suspend fun deleteFood(id: String) = savedFoodDao.deleteById(id)
+
     suspend fun deleteAllLocalData() {
         workoutDao.deleteAll()
         nutritionDao.deleteAll()

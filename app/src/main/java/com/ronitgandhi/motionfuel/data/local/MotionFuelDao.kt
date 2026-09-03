@@ -62,6 +62,9 @@ interface SavedFoodDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(food: SavedFoodEntity)
 
+    @Query("DELETE FROM saved_foods WHERE id = :id")
+    suspend fun deleteById(id: String)
+
     @Query("DELETE FROM saved_foods")
     suspend fun deleteAll()
 }

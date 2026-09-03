@@ -4,7 +4,9 @@ import android.content.ClipData
 import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -25,8 +27,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
-import androidx.compose.material.icons.rounded.AddAPhoto
 import androidx.compose.material.icons.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.CameraAlt
+import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.PhotoLibrary
 import androidx.compose.material.icons.rounded.Restaurant
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Share
@@ -35,14 +39,18 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -81,12 +89,15 @@ fun FoodScreen(
     onAddFood: (FoodSearchResult, MealType) -> Unit,
     onAddManual: (String, Double, Double, Double, Double, MealType, String?) -> Unit,
     onAddSavedFood: (SavedFood, MealType) -> Unit,
+    onDeleteSavedFood: (SavedFood) -> Unit,
 ) {
     val context = LocalContext.current
     var query by remember { mutableStateOf("") }
     var manualDialog by remember { mutableStateOf(false) }
     var selectedMeal by remember { mutableStateOf(MealType.BREAKFAST) }
     var selectedSavedFood by remember { mutableStateOf<SavedFood?>(null) }
+    var pendingAddFood by remember { mutableStateOf<SavedFood?>(null) }
+    var pendingDeleteFood by remember { mutableStateOf<SavedFood?>(null) }
     var selectedPhotoUri by remember { mutableStateOf<String?>(null) }
     var selectedPhotoFile by remember { mutableStateOf<File?>(null) }
     val cameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { captured ->
@@ -94,6 +105,14 @@ fun FoodScreen(
             selectedPhotoFile?.delete()
             selectedPhotoFile = null
             selectedPhotoUri = null
+        }
+    }
+    val galleryLauncher = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+        uri?.let {
+            selectedPhotoFile?.delete()
+            selectedPhotoFile = null
+            runCatching { context.contentResolver.takePersistableUriPermission(it, Intent.FLAG_GRANT_READ_URI_PERMISSION) }
+            selectedPhotoUri = it.toString()
         }
     }
 
@@ -189,6 +208,8 @@ fun FoodScreen(
                     food = food,
                     onOpen = { selectedSavedFood = food },
                     onAdd = { onAddSavedFood(food, selectedMeal) },
+                    onRequestAdd = { pendingAddFood = food },
+                    onRequestDelete = { pendingDeleteFood = food },
                 )
             }
         }
@@ -228,6 +249,9 @@ fun FoodScreen(
                 selectedPhotoUri = photoUri.toString()
                 cameraLauncher.launch(photoUri)
             },
+            onChooseGallery = {
+                galleryLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+            },
             onDismiss = {
                 selectedPhotoFile?.delete()
                 selectedPhotoFile = null
@@ -241,12 +265,67 @@ fun FoodScreen(
             manualDialog = false
         }
     }
+    pendingAddFood?.let { food ->
+        AddSavedFoodToDayDialog(
+            food = food,
+            initialMeal = selectedMeal,
+            onDismiss = { pendingAddFood = null },
+        ) { meal ->
+            selectedMeal = meal
+            onAddSavedFood(food, meal)
+            pendingAddFood = null
+        }
+    }
+    pendingDeleteFood?.let { food ->
+        AlertDialog(
+            onDismissRequest = { pendingDeleteFood = null },
+            title = { Text("Delete saved food?") },
+            text = { Text("${food.name} will be removed from My saved foods. Existing diary entries will remain.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    onDeleteSavedFood(food)
+                    pendingDeleteFood = null
+                }) { Text("Delete", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = { TextButton(onClick = { pendingDeleteFood = null }) { Text("Cancel") } },
+        )
+    }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun SavedFoodCard(food: SavedFood, onOpen: () -> Unit, onAdd: () -> Unit) {
-    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))) {
-        Row(Modifier.fillMaxWidth().clickable(onClick = onOpen).padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+private fun SavedFoodCard(food: SavedFood, onOpen: () -> Unit, onAdd: () -> Unit, onRequestAdd: () -> Unit, onRequestDelete: () -> Unit) {
+    val dismissState = rememberSwipeToDismissBoxState(
+        confirmValueChange = { value ->
+            when (value) {
+                SwipeToDismissBoxValue.StartToEnd -> onRequestAdd()
+                SwipeToDismissBoxValue.EndToStart -> onRequestDelete()
+                SwipeToDismissBoxValue.Settled -> Unit
+            }
+            false
+        },
+    )
+    SwipeToDismissBox(
+        state = dismissState,
+        backgroundContent = {
+            Row(
+                Modifier.fillMaxSize().clip(RoundedCornerShape(18.dp)).background(MaterialTheme.colorScheme.surfaceVariant).padding(horizontal = 20.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(Icons.Rounded.Add, contentDescription = null, tint = FuelGreen)
+                    Text("Add to day", style = MaterialTheme.typography.labelSmall, color = FuelGreen)
+                }
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(Icons.Rounded.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error)
+                    Text("Delete", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
+                }
+            }
+        },
+    ) {
+        Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+            Row(Modifier.fillMaxWidth().clickable(onClick = onOpen).padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
             if (food.photoUri != null) {
                 AsyncImage(
                     model = food.photoUri,
@@ -265,8 +344,32 @@ private fun SavedFoodCard(food: SavedFood, onOpen: () -> Unit, onAdd: () -> Unit
                 Text("${food.caloriesKcal.toInt()} kcal • ${food.proteinG.toInt()} g protein", style = MaterialTheme.typography.bodySmall)
             }
             IconButton(onClick = onAdd) { Icon(Icons.Rounded.Add, contentDescription = "Add ${food.name} to diary") }
+            }
         }
     }
+}
+
+@Composable
+private fun AddSavedFoodToDayDialog(food: SavedFood, initialMeal: MealType, onDismiss: () -> Unit, onAdd: (MealType) -> Unit) {
+    var meal by remember(food.id) { mutableStateOf(initialMeal) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Add ${food.name} to today") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Choose a meal for this diary entry.")
+                MealType.entries.forEach { option ->
+                    FilterChip(
+                        selected = meal == option,
+                        onClick = { meal = option },
+                        label = { Text(option.name.lowercase().replaceFirstChar(Char::uppercase)) },
+                    )
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = { onAdd(meal) }) { Text("Add to today") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+    )
 }
 
 @Composable
@@ -349,6 +452,7 @@ private fun ManualFoodDialog(
     initialMeal: MealType,
     photoUri: String?,
     onTakePhoto: () -> Unit,
+    onChooseGallery: () -> Unit,
     onDismiss: () -> Unit,
     onSave: (String, Double, Double, Double, Double, MealType, String?) -> Unit,
 ) {
@@ -363,10 +467,18 @@ private fun ManualFoodDialog(
         title = { Text("Manual food entry") },
         text = {
             Column(Modifier.heightIn(max = 580.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(onClick = onTakePhoto, modifier = Modifier.fillMaxWidth()) {
-                    Icon(Icons.Rounded.AddAPhoto, contentDescription = null)
-                    Spacer(Modifier.size(8.dp))
-                    Text(if (photoUri == null) "Take food picture" else "Retake food picture")
+                Text(if (photoUri == null) "Add food picture" else "Change food picture", fontWeight = FontWeight.Bold)
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(onClick = onTakePhoto, modifier = Modifier.weight(1f)) {
+                        Icon(Icons.Rounded.CameraAlt, contentDescription = null)
+                        Spacer(Modifier.size(6.dp))
+                        Text("Camera")
+                    }
+                    OutlinedButton(onClick = onChooseGallery, modifier = Modifier.weight(1f)) {
+                        Icon(Icons.Rounded.PhotoLibrary, contentDescription = null)
+                        Spacer(Modifier.size(6.dp))
+                        Text("Gallery")
+                    }
                 }
                 photoUri?.let {
                     AsyncImage(
