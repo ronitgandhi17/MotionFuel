@@ -23,13 +23,25 @@ class SecurityConfigurationTest {
     }
 
     @Test
-    fun fileProviderGrantsOnlyTheDedicatedShareCacheDirectory() {
+    fun fileProviderGrantsOnlyDedicatedPrivateShareAndFoodDirectories() {
         val paths = appFile("res/xml/file_paths.xml")
         assertTrue(paths.contains("<cache-path"))
         assertTrue(paths.contains("path=\"shared_activities/\""))
+        assertTrue(paths.contains("<files-path"))
+        assertTrue(paths.contains("path=\"food_photos/\""))
         assertFalse(paths.contains("path=\".\""))
         assertFalse(paths.contains("<root-path"))
         assertFalse(paths.contains("<external-path"))
+    }
+
+    @Test
+    fun foodPhotoUsesCameraContractWithoutBroadCameraOrMediaPermission() {
+        val manifest = appFile("AndroidManifest.xml")
+        val screen = appFile("java/com/ronitgandhi/motionfuel/ui/screens/FoodScreen.kt")
+        assertTrue(screen.contains("ActivityResultContracts.TakePicture()"))
+        assertFalse(screen.contains("ActivityResultContracts.OpenDocument()"))
+        assertFalse(manifest.contains("android.permission.CAMERA"))
+        assertFalse(manifest.contains("android.permission.READ_MEDIA_IMAGES"))
     }
 
     @Test
