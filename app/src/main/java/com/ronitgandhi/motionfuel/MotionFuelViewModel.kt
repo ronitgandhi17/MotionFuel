@@ -211,6 +211,11 @@ class MotionFuelViewModel(application: Application) : AndroidViewModel(applicati
         viewModelScope.launch { addSavedFoodToDiary(food, mealType, System.currentTimeMillis()) }
     }
 
+    // Removes the selected diary row and lets Room flows recalculate every displayed total.
+    fun deleteNutritionEntry(entry: NutritionEntry) {
+        viewModelScope.launch { repository.deleteNutrition(entry.id) }
+    }
+
     fun deleteSavedFood(food: SavedFood) {
         viewModelScope.launch {
             repository.deleteFood(food.id)
