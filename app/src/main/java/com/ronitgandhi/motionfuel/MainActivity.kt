@@ -12,6 +12,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ShowChart
@@ -34,6 +36,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -61,6 +64,7 @@ import com.ronitgandhi.motionfuel.ui.screens.ProfileScreen
 import com.ronitgandhi.motionfuel.ui.screens.TodayScreen
 import com.ronitgandhi.motionfuel.ui.screens.WorkoutScreen
 import com.ronitgandhi.motionfuel.ui.theme.MotionFuelTheme
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -154,12 +158,15 @@ private fun MotionFuelRoot(
     val entries by viewModel.nutritionEntries.collectAsStateWithLifecycle()
     val nutritionHistory by viewModel.nutritionHistory.collectAsStateWithLifecycle()
     val weightEntries by viewModel.weightEntries.collectAsStateWithLifecycle()
+    val savedFoods by viewModel.savedFoods.collectAsStateWithLifecycle()
     val weather by viewModel.weather.collectAsStateWithLifecycle()
     val weatherStatus by viewModel.weatherStatus.collectAsStateWithLifecycle()
     val insights by viewModel.insights.collectAsStateWithLifecycle()
     val foodResults by viewModel.foodResults.collectAsStateWithLifecycle()
     val foodSearchStatus by viewModel.foodSearchStatus.collectAsStateWithLifecycle()
-    var selectedTab by remember { mutableStateOf(MainTab.TODAY) }
+    // Keeps swipe gestures and bottom-navigation selection on the same five-page state.
+    val pagerState = rememberPagerState(initialPage = MainTab.TODAY.ordinal, pageCount = { MainTab.entries.size })
+    val navigationScope = rememberCoroutineScope()
     var selectedWorkout by remember { mutableStateOf<WorkoutSummary?>(null) }
     var showStartDialog by remember { mutableStateOf(false) }
     var pendingRealType by remember { mutableStateOf<WorkoutType?>(null) }
@@ -176,11 +183,13 @@ private fun MotionFuelRoot(
             telemetry = telemetry,
             insights = insights,
             units = settings.units,
+            weather = weather,
+            weatherStatus = weatherStatus,
             onPauseResume = viewModel::pauseOrResumeWorkout,
             onFinish = viewModel::finishWorkout,
             onDone = {
                 viewModel.dismissCompletedWorkout()
-                selectedTab = MainTab.ACTIVITY
+                navigationScope.launch { pagerState.scrollToPage(MainTab.ACTIVITY.ordinal) }
             },
         )
     } else if (selectedWorkout != null) {
@@ -196,8 +205,8 @@ private fun MotionFuelRoot(
                 NavigationBar {
                     MainTab.entries.forEach { tab ->
                         NavigationBarItem(
-                            selected = selectedTab == tab,
-                            onClick = { selectedTab = tab },
+                            selected = pagerState.currentPage == tab.ordinal,
+                            onClick = { navigationScope.launch { pagerState.animateScrollToPage(tab.ordinal) } },
                             icon = { Icon(tab.icon, contentDescription = tab.label) },
                             label = { Text(tab.label) },
                         )
@@ -205,8 +214,12 @@ private fun MotionFuelRoot(
                 }
             },
         ) { padding ->
-            Box(Modifier.fillMaxSize().padding(padding)) {
-                when (selectedTab) {
+            HorizontalPager(
+                state = pagerState,
+                modifier = Modifier.fillMaxSize().padding(padding),
+                key = { MainTab.entries[it].name },
+            ) { page ->
+                when (MainTab.entries[page]) {
                     MainTab.TODAY -> TodayScreen(
                         profile = profile,
                         workouts = workouts,
@@ -218,8 +231,8 @@ private fun MotionFuelRoot(
                         settings = settings,
                         onStartWorkout = { showStartDialog = true },
                         onRefreshWeather = viewModel::refreshWeather,
-                        onOpenActivity = { selectedTab = MainTab.ACTIVITY },
-                        onOpenFood = { selectedTab = MainTab.FOOD },
+                        onOpenActivity = { navigationScope.launch { pagerState.animateScrollToPage(MainTab.ACTIVITY.ordinal) } },
+                        onOpenFood = { navigationScope.launch { pagerState.animateScrollToPage(MainTab.FOOD.ordinal) } },
                     )
                     MainTab.ACTIVITY -> ActivityScreen(
                         workouts = workouts,
@@ -230,11 +243,13 @@ private fun MotionFuelRoot(
                     MainTab.FOOD -> FoodScreen(
                         totals = totals,
                         entries = entries,
+                        savedFoods = savedFoods,
                         results = foodResults,
                         searchStatus = foodSearchStatus,
                         onSearch = viewModel::searchFoods,
                         onAddFood = viewModel::addFood,
                         onAddManual = viewModel::addManualFood,
+                        onAddSavedFood = viewModel::addSavedFood,
                     )
                     MainTab.PROGRESS -> ProgressScreen(
                         nutritionHistory = nutritionHistory,

@@ -1,5 +1,8 @@
 package com.ronitgandhi.motionfuel.ui.screens
 
+import android.content.Intent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -8,14 +11,18 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.AddAPhoto
 import androidx.compose.material.icons.rounded.Restaurant
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.AlertDialog
@@ -38,6 +45,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.foundation.text.KeyboardOptions
@@ -46,24 +56,36 @@ import com.ronitgandhi.motionfuel.domain.model.FoodSearchResult
 import com.ronitgandhi.motionfuel.domain.model.NutritionEntry
 import com.ronitgandhi.motionfuel.domain.model.NutritionTotals
 import com.ronitgandhi.motionfuel.domain.model.MealType
+import com.ronitgandhi.motionfuel.domain.model.SavedFood
 import com.ronitgandhi.motionfuel.ui.components.MacroProgress
 import com.ronitgandhi.motionfuel.ui.theme.FuelGreen
 import com.ronitgandhi.motionfuel.ui.theme.FuelOrange
 import com.ronitgandhi.motionfuel.ui.theme.FuelSky
+import coil.compose.AsyncImage
 
 @Composable
 fun FoodScreen(
     totals: NutritionTotals,
     entries: List<NutritionEntry>,
+    savedFoods: List<SavedFood>,
     results: List<FoodSearchResult>,
     searchStatus: String?,
     onSearch: (String) -> Unit,
     onAddFood: (FoodSearchResult, MealType) -> Unit,
-    onAddManual: (String, Double, Double, Double, Double, MealType) -> Unit,
+    onAddManual: (String, Double, Double, Double, Double, MealType, String?) -> Unit,
+    onAddSavedFood: (SavedFood, MealType) -> Unit,
 ) {
+    val context = LocalContext.current
     var query by remember { mutableStateOf("") }
     var manualDialog by remember { mutableStateOf(false) }
     var selectedMeal by remember { mutableStateOf(MealType.BREAKFAST) }
+    var selectedPhotoUri by remember { mutableStateOf<String?>(null) }
+    val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        uri?.let {
+            runCatching { context.contentResolver.takePersistableUriPermission(it, Intent.FLAG_GRANT_READ_URI_PERMISSION) }
+            selectedPhotoUri = it.toString()
+        }
+    }
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(20.dp),
@@ -131,6 +153,21 @@ fun FoodScreen(
             }
         }
         item {
+            Text("My saved foods", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Text("Manual foods are saved here for quick reuse.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        if (savedFoods.isEmpty()) {
+            item {
+                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))) {
+                    Text("Add a manual food to build your saved list.", modifier = Modifier.padding(16.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+        } else {
+            items(savedFoods, key = { "saved-${it.id}" }) { food ->
+                SavedFoodCard(food = food, onAdd = { onAddSavedFood(food, selectedMeal) })
+            }
+        }
+        item {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text("Search results", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
                 TextButton(onClick = { manualDialog = true }) { Icon(Icons.Rounded.Add, null); Text("Manual") }
@@ -154,15 +191,56 @@ fun FoodScreen(
         }
     }
     if (manualDialog) {
-        ManualFoodDialog(selectedMeal, onDismiss = { manualDialog = false }) { name, calories, protein, carbs, fat, meal ->
-            onAddManual(name, calories, protein, carbs, fat, meal)
+        ManualFoodDialog(
+            initialMeal = selectedMeal,
+            photoUri = selectedPhotoUri,
+            onPickPhoto = { photoPicker.launch(arrayOf("image/*")) },
+            onDismiss = {
+                selectedPhotoUri = null
+                manualDialog = false
+            },
+        ) { name, calories, protein, carbs, fat, meal, photoUri ->
+            onAddManual(name, calories, protein, carbs, fat, meal, photoUri)
+            selectedPhotoUri = null
             manualDialog = false
         }
     }
 }
 
 @Composable
-private fun ManualFoodDialog(initialMeal: MealType, onDismiss: () -> Unit, onSave: (String, Double, Double, Double, Double, MealType) -> Unit) {
+private fun SavedFoodCard(food: SavedFood, onAdd: () -> Unit) {
+    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))) {
+        Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            if (food.photoUri != null) {
+                AsyncImage(
+                    model = food.photoUri,
+                    contentDescription = "Photo of ${food.name}",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.size(64.dp).clip(RoundedCornerShape(14.dp)),
+                )
+            } else {
+                Surface(shape = RoundedCornerShape(14.dp), color = FuelGreen.copy(alpha = 0.15f), modifier = Modifier.size(64.dp)) {
+                    Icon(Icons.Rounded.Restaurant, contentDescription = null, tint = FuelGreen, modifier = Modifier.padding(18.dp))
+                }
+            }
+            Spacer(Modifier.size(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text(food.name, fontWeight = FontWeight.Bold)
+                Text("${food.caloriesKcal.toInt()} kcal • ${food.proteinG.toInt()} g protein", style = MaterialTheme.typography.bodySmall)
+            }
+            IconButton(onClick = onAdd) { Icon(Icons.Rounded.Add, contentDescription = "Add ${food.name} to diary") }
+        }
+    }
+}
+
+@Composable
+private fun ManualFoodDialog(
+    initialMeal: MealType,
+    photoUri: String?,
+    onPickPhoto: () -> Unit,
+    onDismiss: () -> Unit,
+    onSave: (String, Double, Double, Double, Double, MealType, String?) -> Unit,
+) {
     var name by remember { mutableStateOf("") }
     var calories by remember { mutableStateOf("") }
     var protein by remember { mutableStateOf("") }
@@ -173,7 +251,20 @@ private fun ManualFoodDialog(initialMeal: MealType, onDismiss: () -> Unit, onSav
         onDismissRequest = onDismiss,
         title = { Text("Manual food entry") },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(Modifier.heightIn(max = 580.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = onPickPhoto, modifier = Modifier.fillMaxWidth()) {
+                    Icon(Icons.Rounded.AddAPhoto, contentDescription = null)
+                    Spacer(Modifier.size(8.dp))
+                    Text(if (photoUri == null) "Add food picture" else "Change food picture")
+                }
+                photoUri?.let {
+                    AsyncImage(
+                        model = it,
+                        contentDescription = "Selected food picture",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxWidth().height(130.dp).clip(RoundedCornerShape(14.dp)),
+                    )
+                }
                 OutlinedTextField(name, { name = it }, label = { Text("Food name") }, singleLine = true)
                 OutlinedTextField(calories, { calories = it }, label = { Text("Calories") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -189,7 +280,7 @@ private fun ManualFoodDialog(initialMeal: MealType, onDismiss: () -> Unit, onSav
         confirmButton = {
             TextButton(
                 enabled = name.isNotBlank() && calories.toDoubleOrNull() != null,
-                onClick = { onSave(name, calories.toDoubleOrNull() ?: 0.0, protein.toDoubleOrNull() ?: 0.0, carbs.toDoubleOrNull() ?: 0.0, fat.toDoubleOrNull() ?: 0.0, meal) },
+                onClick = { onSave(name, calories.toDoubleOrNull() ?: 0.0, protein.toDoubleOrNull() ?: 0.0, carbs.toDoubleOrNull() ?: 0.0, fat.toDoubleOrNull() ?: 0.0, meal, photoUri) },
             ) { Text("Save locally") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },

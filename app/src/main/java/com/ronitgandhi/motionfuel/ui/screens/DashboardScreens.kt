@@ -44,7 +44,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -260,8 +259,9 @@ fun ProgressScreen(
     insights: List<Insight>,
     onAddWeight: (Double) -> Unit,
 ) {
-    var days by remember { mutableIntStateOf(7) }
+    var range by remember { mutableStateOf(ProgressRange.WEEK) }
     var showWeightDialog by remember { mutableStateOf(false) }
+    val days = range.days
     val caloriePoints = remember(nutritionHistory, days, profile.dailyCalorieGoalKcal) { calorieTrend(nutritionHistory, days, profile.dailyCalorieGoalKcal) }
     val weightPoints = remember(weightEntries, days) { weightTrend(weightEntries, days) }
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -276,10 +276,16 @@ fun ProgressScreen(
         }
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf(7, 30).forEach { range -> FilterChip(selected = days == range, onClick = { days = range }, label = { Text("$range days") }) }
+                ProgressRange.entries.forEach { option ->
+                    FilterChip(selected = range == option, onClick = { range = option }, label = { Text(option.label) })
+                }
             }
         }
-        item { TrendCard("Calories", "${caloriePoints.sumOf { it.value ?: 0.0 }.div(days).toInt()} kcal daily average", caloriePoints, "kcal", FuelBlue, showTarget = true) }
+        item {
+            val calories = caloriePoints.sumOf { it.value ?: 0.0 }
+            val summary = if (range == ProgressRange.DAY) "${calories.toInt()} kcal today" else "${calories.div(days).toInt()} kcal daily average"
+            TrendCard("Calories", summary, caloriePoints, "kcal", FuelBlue, showTarget = true)
+        }
         item {
             val values = weightPoints.mapNotNull { it.value }
             val change = if (values.size >= 2) values.last() - values.first() else null
@@ -309,6 +315,12 @@ fun ProgressScreen(
         onAddWeight(it)
         showWeightDialog = false
     }
+}
+
+private enum class ProgressRange(val label: String, val days: Int) {
+    DAY("Day", 1),
+    WEEK("Week", 7),
+    MONTH("Month", 30),
 }
 
 @Composable

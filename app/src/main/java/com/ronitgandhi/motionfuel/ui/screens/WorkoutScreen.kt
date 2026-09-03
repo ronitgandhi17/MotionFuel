@@ -14,6 +14,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.Cloud
 import androidx.compose.material.icons.rounded.Flag
 import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.PlayArrow
@@ -33,6 +34,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.ronitgandhi.motionfuel.domain.model.Insight
 import com.ronitgandhi.motionfuel.domain.model.UnitSystem
+import com.ronitgandhi.motionfuel.domain.model.WeatherContext
 import com.ronitgandhi.motionfuel.domain.model.WorkoutStatus
 import com.ronitgandhi.motionfuel.domain.model.WorkoutTelemetry
 import com.ronitgandhi.motionfuel.ui.components.InsightCard
@@ -51,6 +53,8 @@ fun WorkoutScreen(
     telemetry: WorkoutTelemetry,
     insights: List<Insight>,
     units: UnitSystem,
+    weather: WeatherContext,
+    weatherStatus: String,
     onPauseResume: () -> Unit,
     onFinish: () -> Unit,
     onDone: () -> Unit,
@@ -73,6 +77,25 @@ fun WorkoutScreen(
                         },
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                }
+            }
+        }
+        item {
+            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))) {
+                Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Rounded.Cloud, contentDescription = null, tint = FuelSky)
+                    Spacer(Modifier.size(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            "${weather.temperatureC.toInt()}°C • ${weather.humidityPercent}% humidity • ${weather.windSpeedKph.toInt()} km/h wind",
+                            fontWeight = FontWeight.Bold,
+                        )
+                        Text(
+                            if (weather.isRaining) "$weatherStatus • Rain" else weatherStatus,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
             }
         }

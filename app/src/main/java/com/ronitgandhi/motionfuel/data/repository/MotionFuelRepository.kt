@@ -2,6 +2,8 @@ package com.ronitgandhi.motionfuel.data.repository
 
 import com.ronitgandhi.motionfuel.data.local.NutritionDao
 import com.ronitgandhi.motionfuel.data.local.NutritionEntryEntity
+import com.ronitgandhi.motionfuel.data.local.SavedFoodDao
+import com.ronitgandhi.motionfuel.data.local.SavedFoodEntity
 import com.ronitgandhi.motionfuel.data.local.WorkoutDao
 import com.ronitgandhi.motionfuel.data.local.WorkoutEntity
 import com.ronitgandhi.motionfuel.data.local.WeightDao
@@ -11,6 +13,7 @@ import com.ronitgandhi.motionfuel.domain.model.GeoPoint
 import com.ronitgandhi.motionfuel.domain.model.MealType
 import com.ronitgandhi.motionfuel.domain.model.NutritionEntry
 import com.ronitgandhi.motionfuel.domain.model.NutritionTotals
+import com.ronitgandhi.motionfuel.domain.model.SavedFood
 import com.ronitgandhi.motionfuel.domain.model.WorkoutSummary
 import com.ronitgandhi.motionfuel.domain.model.WorkoutType
 import com.ronitgandhi.motionfuel.domain.model.WeightEntry
@@ -23,6 +26,7 @@ class MotionFuelRepository(
     private val workoutDao: WorkoutDao,
     private val nutritionDao: NutritionDao,
     private val weightDao: WeightDao,
+    private val savedFoodDao: SavedFoodDao,
 ) {
     fun observeWorkouts(): Flow<List<WorkoutSummary>> = workoutDao.observeAll().map { rows -> rows.map(::toDomain) }
 
@@ -36,6 +40,8 @@ class MotionFuelRepository(
 
     fun observeWeightEntries(start: Long): Flow<List<WeightEntry>> =
         weightDao.observeSince(start).map { rows -> rows.map { WeightEntry(it.id, it.weightKg, it.recordedAtMillis) } }
+
+    fun observeSavedFoods(): Flow<List<SavedFood>> = savedFoodDao.observeAll().map { rows -> rows.map(::toDomain) }
 
     suspend fun saveWorkout(workout: WorkoutSummary) = workoutDao.upsert(
         WorkoutEntity(
@@ -72,10 +78,15 @@ class MotionFuelRepository(
         WeightEntryEntity(entry.id, entry.weightKg, entry.recordedAtMillis),
     )
 
+    suspend fun saveFood(food: SavedFood) = savedFoodDao.upsert(
+        SavedFoodEntity(food.id, food.name, food.caloriesKcal, food.proteinG, food.carbohydratesG, food.fatG, food.photoUri, food.createdAtMillis),
+    )
+
     suspend fun deleteAllLocalData() {
         workoutDao.deleteAll()
         nutritionDao.deleteAll()
         weightDao.deleteAll()
+        savedFoodDao.deleteAll()
     }
 
     private fun toDomain(entity: WorkoutEntity) = WorkoutSummary(
@@ -103,6 +114,17 @@ class MotionFuelRepository(
         mealType = enumValueOrDefault(entity.mealType, MealType.SNACK),
         consumedAtMillis = entity.consumedAtMillis,
         createdOffline = entity.createdOffline,
+    )
+
+    private fun toDomain(entity: SavedFoodEntity) = SavedFood(
+        entity.id,
+        entity.name,
+        entity.caloriesKcal,
+        entity.proteinG,
+        entity.carbohydratesG,
+        entity.fatG,
+        entity.photoUri,
+        entity.createdAtMillis,
     )
 
     private fun encodeRoute(route: List<GeoPoint>): String = JSONArray().apply {

@@ -4,7 +4,7 @@
 **Primary stack:** Kotlin, Android Studio, Jetpack Compose, Material Design 3, Firebase Authentication, Cloud Firestore, Firebase Storage, Room, DataStore, Retrofit/OkHttp, Google Maps SDK for Android  
 **Target platform:** Android 10+ (API 29+) for the university build, with graceful feature degradation when optional sensors are unavailable  
 **Architecture:** Feature-oriented Clean Architecture + MVVM  
-**Document status:** Version 1.2 — implementation-aligned Firebase/App Check security revision, September 2026  
+**Document status:** Version 1.3 — implementation-aligned interaction, saved-food photo and progress-range revision, September 2026
 
 ---
 
@@ -35,7 +35,7 @@ The most important product and architecture changes are:
 - Room and DataStore are excluded from cloud backup/device transfer; generated share images stay in Android's non-backed-up cache and expire after 24 hours.
 - **USDA FoodData Central** remains the default food database. A small Cloud Function or other trusted backend may proxy requests if an API credential must be kept out of the APK.
 - Breakfast, Lunch and Dinner remain first-class calorie sections, with Snacks as a compact optional section.
-- Custom Meals, MyFitnessPal-inspired 7-day/30-day calorie and weight trend bar graphs, weather, step counting, background workout tracking and Social Recipes remain in scope as described below.
+- Custom Meals with saved-food photos, MyFitnessPal-inspired Day/Week/Month calorie and weight trend bar graphs, weather, swipe navigation, step counting, background workout tracking and Social Recipes remain in scope as described below.
 
 The result is a simpler architecture than the previous third-party identity version because authentication and Firestore ownership now use the same Firebase identity.
 
@@ -309,7 +309,7 @@ MotionFuel is not intended to:
 - Custom Meal creation with name, serving, protein, carbohydrates, fat, calories and optional photo.
 - Manual/offline food entry when the API is unavailable.
 - Edit/delete nutrition entries.
-- MyFitnessPal-inspired 7-day and 30-day calorie trend bar graph with a daily target reference.
+- MyFitnessPal-inspired Day, Week and Month calorie trend bar graph with a daily target reference.
 
 #### Fitness tracking
 
@@ -332,7 +332,7 @@ MotionFuel is not intended to:
 #### Progress & insight
 
 - Weight entry history.
-- MyFitnessPal-inspired 7-day and 30-day weight trend bar graph.
+- MyFitnessPal-inspired Day, Week and Month weight trend bar graph.
 - Recalculate maintenance calories when current profile weight or activity level changes.
 - Store maintenance-calorie snapshots so changes can be explained historically.
 - AFEE context cards with evidence.
@@ -1171,9 +1171,9 @@ The user can override the calculated value because labels, fibre, sugar alcohols
 
 Photo implementation for MVP:
 
-- use Android Photo Picker or a camera intent;
-- copy the selected/captured image into app-private storage;
-- persist a local URI/path in `CustomMeal`;
+- use Android's system document/photo picker without broad media permission;
+- retain the picker-granted read permission and store only a validated `content://` URI;
+- persist the URI in the local `SavedFood` record and display its thumbnail in **My saved foods**;
 - do not require broad media-library permission;
 - cloud image backup is Phase 2.
 
@@ -1186,8 +1186,9 @@ The Progress screen uses a familiar MyFitnessPal-inspired summary layout while r
 
 Both cards share the same range selector:
 
-- **7 days** — one bar per day;
-- **30 days** — one bar per day with horizontally scrollable or compact labels.
+- **Day** — today's calorie total and latest available weight measurement;
+- **Week** — seven daily bars;
+- **Month** — 30 daily bars with compact presentation.
 
 Calories and weight must remain in separate charts because they use different units and scales. The screen must not use a combined or dual axis. Above each chart, show the latest value and the change over the selected period where enough data exists.
 
@@ -1260,7 +1261,7 @@ Rules:
 
 - values are stored locally first and later synchronised;
 - user may edit/delete an incorrect entry;
-- the Progress screen displays weight as a 7-day/30-day bar graph, with no fabricated values for dates without a measurement;
+- the Progress screen displays weight using Day/Week/Month ranges, with no fabricated values for dates without a measurement;
 - the chart header displays the latest weight and the net change over the selected period when enough data exists;
 - no automatic judgement labels such as `good` or `bad` are attached to weight change;
 - the user can mark the latest measurement as their **current profile weight**.
@@ -1634,7 +1635,7 @@ Whenever nutrition/workout/weight data changes, update or derive the local day s
 - estimated workout burn;
 - latest weight for the day if present.
 
-This makes 7/30-day charts fast and deterministic.
+This makes Day/Week/Month charts fast and deterministic.
 
 ### 20.6 Conflict strategy
 
@@ -2272,7 +2273,7 @@ Required shared characteristics:
 - a prominent quick-add action for Food, Weight and Workout logging;
 - a simple bottom navigation bar with clear icons and labels;
 - rounded cards, compact spacing, bold numeric values and subdued supporting labels;
-- familiar date switching, 7-day/30-day range controls and tap-for-detail chart interactions;
+- familiar date switching, Day/Week/Month range controls and tap-for-detail chart interactions;
 - consistent skeleton, empty, offline and error states that preserve the same layout instead of causing large visual shifts.
 
 The following must remain original to MotionFuel:
@@ -2412,6 +2413,8 @@ The percentages are calculated against the daily calorie target, not independent
 This is more realistic than a permanent `Insights` tab because Progress naturally contains weight, calorie trends, maintenance calories and longer-term insights. The highest-priority AFEE insight still appears on Today.
 
 The bar should visually follow MyFitnessPal's compact labelled navigation style. A prominent quick-add button or sheet provides shortcuts for **Food**, **Weight** and **Workout**, while the five MotionFuel destinations remain available for the assessed feature set.
+
+Users may also swipe horizontally across the main content area. A left swipe advances to the next bottom-navigation destination and a right swipe returns to the previous destination; the selected navigation item and pager always remain synchronised. Focused workout and activity-detail screens remain outside this pager.
 
 ### Primary actions
 
@@ -2561,7 +2564,7 @@ DataStore changes theme/units immediately without app restart.
 | FR-15 | The system shall calculate meal-level and daily calorie/macronutrient totals. |
 | FR-16 | Breakfast, Lunch and Dinner shall display calories and percentage of the current daily calorie goal. |
 | FR-17 | The system shall allow a user to create a Custom Meal with macros, calories and optional image. |
-| FR-18 | The Progress screen shall provide separate 7-day and 30-day calorie and weight trend bar graphs, with historical calorie-target snapshots and no combined axis. |
+| FR-18 | The Progress screen shall provide separate Day, Week and Month calorie and weight trend bar graphs, with historical calorie-target snapshots and no combined axis. |
 | FR-19 | The system shall allow a user to start, pause, resume and finish a walking/running workout. |
 | FR-20 | During an active workout the system shall collect validated location updates and display the route using Google Maps. |
 | FR-21 | The system shall collect step-counter data when supported by the device. |
@@ -2587,6 +2590,10 @@ DataStore changes theme/units immediately without app restart.
 | FR-41 | The system shall reject non-finite GPS inputs and sanitize non-finite sensor/energy-estimation inputs before calculating or persisting metrics. |
 | FR-42 | Before sharing, the system shall warn that the complete route includes start and finish locations; cancelling shall produce no share action. |
 | FR-43 | Firebase App Check shall use a debug provider in debug builds and Play Integrity in release builds. |
+| FR-44 | The main Today, Activity, Food, Progress and Profile destinations shall support left/right swipe navigation synchronised with the bottom navigation bar. |
+| FR-45 | Manual food creation shall allow an optional system-picked image, persist only a validated local content URI and display the thumbnail in My saved foods. |
+| FR-46 | A saved manual food shall be reusable from My saved foods in any selected meal without re-entering its nutrition values. |
+| FR-47 | The live Track Activity screen shall display the current or cached weather temperature, humidity, wind and rain state. |
 
 ---
 
@@ -2669,14 +2676,14 @@ DataStore changes theme/units immediately without app restart.
 
 **Given** a provider food is not suitable  
 **When** I enter a name/macros and select or capture a photo  
-**Then** the meal is saved locally and can be added to Breakfast, Lunch, Dinner or Snack.
+**Then** the meal and optional picture appear in My saved foods and can be added again to Breakfast, Lunch, Dinner or Snack.
 
 ### US-07 — See my calorie and weight trends
 
 > As a user, I want familiar weekly/monthly calorie and weight bar graphs so that I can understand my progress over time.
 
 **Given** I have daily nutrition summaries and saved weight entries  
-**When** I choose 7 days or 30 days in Progress  
+**When** I choose Day, Week or Month in Progress
 **Then** separate charts display calorie and weight bars using their own scales, the calorie chart shows the relevant daily target reference, and missing weight dates are not represented as zero.
 
 ### US-08 — Run with a live Google Map
@@ -2725,7 +2732,7 @@ DataStore changes theme/units immediately without app restart.
 
 **Given** I enter a valid weight  
 **When** I save it  
-**Then** it appears in weight history and updates the 7-day/30-day weight bar graph and period-change summary.
+**Then** it appears in weight history and updates the selected Day/Week/Month weight bar graph and period-change summary.
 
 ### US-14 — Recalculate maintenance after progress changes
 
@@ -3178,7 +3185,7 @@ On a physical device:
 - suggested calorie confirmation;
 - Breakfast/Lunch/Dinner cards;
 - custom meal form validation;
-- shared 7/30-day range controls for the separate calorie and weight bar graphs;
+- shared Day/Week/Month range controls for the separate calorie and weight bar graphs;
 - calorie bar tap details, target line and historical target values;
 - weight bar tap details, unit display and missing-date behaviour;
 - Progress maintenance card values and `How is this calculated?` details;
@@ -3233,7 +3240,7 @@ The assessed MVP should include only the features required to complete the main 
 - calorie/macronutrient totals;
 - Custom Meal;
 - daily goal/remaining UI;
-- 7-day/30-day calorie trend bar graph.
+- Day/Week/Month calorie trend bar graph.
 
 ### Fitness
 
@@ -3250,7 +3257,7 @@ The assessed MVP should include only the features required to complete the main 
 ### Progress/insight
 
 - weight entries;
-- 7-day/30-day weight trend bar graph;
+- Day/Week/Month weight trend bar graph;
 - maintenance recalculation from current profile inputs;
 - AFEE insight cards;
 - workout history/detail.
@@ -3420,7 +3427,7 @@ Build Login, Sign Up, Forgot Password, Firebase Auth repository, user profile mo
 
 ### Phase 3 — Nutrition Core
 
-Food database client, Breakfast/Lunch/Dinner/Snack entries, daily totals, Custom Meal, Room persistence and 7/30-day calorie chart.
+Food database client, Breakfast/Lunch/Dinner/Snack entries, daily totals, Custom Meal photos, reusable saved foods, Room persistence and Day/Week/Month calorie chart.
 
 ### Phase 4 — Google Maps + Workout Service
 
@@ -3542,7 +3549,7 @@ End workout and show:
 
 Open Progress:
 
-- separate 7-day/30-day calorie and weight trend bar graphs;
+- separate Day/Week/Month calorie and weight trend bar graphs;
 - tap details for individual calorie and weight bars;
 - current estimated maintenance calories;
 - `How is this calculated?` showing BMR, activity factor and TDEE;
@@ -3603,7 +3610,7 @@ context-aware fitness and nutrition companion
 | Authentication/security | verified identity | Firebase Authentication + Firestore Security Rules | signed-in state + cross-user access denial test |
 | Local storage | offline-first app | Room + DataStore | airplane/offline flow |
 | Cloud computing | synchronisation | WorkManager + Cloud Firestore; Cloud Function only for secret-key proxy/cleanup | pending→synced record |
-| Data analytics | calorie/weight progress | daily summaries, two Canvas bar graphs, period change | 7/30-day Progress screen |
+| Data analytics | calorie/weight progress | daily summaries, two Canvas bar graphs, period change | Day/Week/Month Progress screen |
 | Applied algorithm | maintenance calories | Mifflin–St Jeor BMR + activity-factor TDEE calculation | signup calculation + maintenance detail screen |
 | Advanced algorithm | AFEE | rule/score engine across domains | insight + `Why` evidence |
 | Privacy | route + health-like data | local processing, route masking, public/private recipe separation | privacy settings |
@@ -3680,7 +3687,7 @@ The realistic assessed application is not a full Strava/MyFitnessPal clone. It i
 - Breakfast/Lunch/Dinner calorie UI;
 - FoodData Central search;
 - Custom Meal with macros and optional image;
-- separate 7-day/30-day calorie and weight trend bar graphs;
+- separate Day/Week/Month calorie and weight trend bar graphs;
 - Google Maps live/saved run route;
 - foreground-service background tracking;
 - step counter;
@@ -3808,7 +3815,7 @@ Implement:
 - daily calories/protein/carbs/fat;
 - recent foods;
 - Custom Meal;
-- 7-day/30-day calorie trend bar graph.
+- Day/Week/Month calorie trend bar graph.
 
 ### 5. Custom Meal
 
@@ -3864,7 +3871,7 @@ Show:
 
 - Add Weight;
 - weight history/trend;
-- separate 7-day/30-day calorie and weight trend bar graphs;
+- separate Day/Week/Month calorie and weight trend bar graphs;
 - latest weight and selected-period change summary;
 - current maintenance calories;
 - current daily calorie goal;
@@ -3939,9 +3946,9 @@ Avoid comments/followers/complex ranking until everything above works.
 - [ ] App Check uses debug attestation for debug builds and Play Integrity for release builds; production enforcement is enabled after registration.
 - [ ] Breakfast, Lunch and Dinner show their own calorie totals.
 - [ ] Food search returns real remote database results.
-- [ ] A Custom Meal can be saved with carbs/fat/protein and an optional picture.
+- [ ] A Custom Meal can be saved with carbs/fat/protein and an optional picture, appears in My saved foods and can be reused in any meal.
 - [ ] Nutrition totals remain available offline after being saved.
-- [ ] Progress shows separate working 7-day and 30-day calorie and weight trend bar graphs.
+- [ ] Progress shows separate working Day, Week and Month calorie and weight trend bar graphs.
 - [ ] Calorie bars show historical target references and weight bars never treat missing measurements as zero.
 - [ ] A walk/run can start, pause, resume and finish reliably.
 - [ ] Google Maps displays the live accepted route polyline.
@@ -3953,7 +3960,8 @@ Avoid comments/followers/complex ranking until everything above works.
 - [ ] Workout steps update on a supported device or the missing-sensor state is handled cleanly.
 - [ ] Estimated workout burn and elapsed time are displayed.
 - [ ] If a target distance is selected, a clearly labelled approximate finish time is displayed after enough pace data exists.
-- [ ] Weather is displayed or a clean offline/unavailable state is shown.
+- [ ] The live Track Activity screen displays temperature, humidity, wind and rain state, or a clean cached/offline state.
+- [ ] Swiping left or right across a main destination changes the selected bottom-navigation activity in the same direction.
 - [ ] Active workout continues when the phone is locked/backgrounded.
 - [ ] A foreground-service notification is visible during background tracking.
 - [ ] At least one stationary GPS drift/jump case is rejected.

@@ -83,6 +83,7 @@ dependencies {
     implementation("androidx.compose.foundation:foundation:1.9.0")
     implementation("androidx.compose.material3:material3:1.3.2")
     implementation("androidx.compose.material:material-icons-extended:1.7.8")
+    implementation("io.coil-kt:coil-compose:2.7.0")
     debugImplementation("androidx.compose.ui:ui-tooling:1.9.0")
 
     // Adds the required Google Maps Compose presentation layer for live and saved routes.
