@@ -18,6 +18,11 @@ class GpsFilter(
     }
 
     fun evaluate(sample: GeoPoint, movement: ActivityType): FilteredLocation {
+        if (!sample.latitude.isFinite() || !sample.longitude.isFinite() ||
+            !sample.accuracyMeters.isFinite() || sample.altitudeMeters?.isFinite() == false
+        ) {
+            return rejected(sample, LocationQuality.POOR, "Location sample contains a non-finite value")
+        }
         val quality = when {
             sample.accuracyMeters <= 12f -> LocationQuality.GOOD
             sample.accuracyMeters <= maximumAccuracyMeters -> LocationQuality.FAIR

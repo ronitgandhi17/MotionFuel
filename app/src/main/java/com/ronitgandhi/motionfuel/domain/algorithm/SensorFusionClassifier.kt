@@ -7,10 +7,10 @@ import kotlin.math.max
 
 class SensorFusionClassifier {
     fun classify(window: SensorFeatureWindow): ActivityClassification {
-        val stepRate = window.stepRatePerMinute ?: 0.0
-        val speed = window.gpsSpeedMps ?: 0.0
-        val energy = window.accelerationEnergy
-        val gyro = window.gyroscopeVariance
+        val stepRate = window.stepRatePerMinute.finiteOrZero()
+        val speed = window.gpsSpeedMps.finiteOrZero()
+        val energy = window.accelerationEnergy.finiteOrZero()
+        val gyro = window.gyroscopeVariance.finiteOrZero()
 
         val stationary = mean(
             inverseScore(speed, 0.25, 1.0),
@@ -49,6 +49,8 @@ class SensorFusionClassifier {
         }
         return ActivityClassification(type, confidence.toFloat(), evidence)
     }
+
+    private fun Double?.finiteOrZero() = this?.takeIf(Double::isFinite) ?: 0.0
 
     private fun mean(vararg values: Double) = values.average()
 

@@ -4,7 +4,7 @@
 **Primary stack:** Kotlin, Android Studio, Jetpack Compose, Material Design 3, Firebase Authentication, Cloud Firestore, Firebase Storage, Room, DataStore, Retrofit/OkHttp, Google Maps SDK for Android  
 **Target platform:** Android 10+ (API 29+) for the university build, with graceful feature degradation when optional sensors are unavailable  
 **Architecture:** Feature-oriented Clean Architecture + MVVM  
-**Document status:** Revised implementation-ready PRD — Firebase authentication, TDEE maintenance-calorie baseline, MyFitnessPal-inspired UI, revised Progress charts and shareable activity summaries, September 2026  
+**Document status:** Version 1.2 — implementation-aligned Firebase/App Check security revision, September 2026  
 
 ---
 
@@ -20,15 +20,19 @@ The most important product and architecture changes are:
 - The calculated TDEE is stored as the user's **estimated maintenance calories** and is displayed prominently on the Today/Home screen.
 - The user's daily calorie goal initially defaults to maintenance calories. If the user later selects a weight-loss or weight-gain goal, MotionFuel may suggest a modest editable adjustment, but it never presents the value as medical advice.
 - Maintenance calories are recalculated whenever the user updates weight, height, age/sex profile data or activity level. The MVP does **not** attempt to infer maintenance from weeks of logged calories and weight change.
-- Firebase Authentication provides sign-up, sign-in, password reset, email verification if enabled, session persistence and sign-out.
+- Firebase Authentication provides sign-up, sign-in, password reset, mandatory email verification, session persistence and sign-out.
+- The dashboard remains inaccessible until Firebase confirms `isEmailVerified`; the verification screen provides refresh, resend and use-another-account actions.
 - Cloud Firestore stores user profile, calorie target, nutrition logs, workouts, progress records and settings using the Firebase Authentication UID as the owner key.
-- Firestore Security Rules enforce `request.auth.uid == userId` for user-private collections.
+- Firestore Security Rules enforce UID ownership, verified-email access, document field allowlists, types, ranges and trusted server timestamps.
+- Firebase App Check uses the debug provider only in debug builds and Play Integrity in release builds; production enforcement is enabled in Firebase Console after release registration.
 - **Google Maps SDK for Android + Maps Compose** remains the required map implementation for live and saved run routes.
 - The full application UI follows a **MyFitnessPal-inspired visual hierarchy and interaction model**: a card-based Today screen, diary-style meal sections, prominent calorie remaining summary, quick-add actions, bottom navigation and compact Progress cards. MotionFuel retains its own branding, colours, icons, copy and original implementation.
 - The user-facing GPS quality indicator is removed. Location validation and drift rejection continue internally, and the UI only shows a general location-unavailable message when tracking cannot safely continue.
 - GPS filtering remains an internal implementation detail: rejected/noisy sample counts and “GPS noise removed” messages are not shown in the live workout, activity history or activity-detail UI.
 - Tapping a saved activity opens a Strava-inspired MotionFuel summary with the Google Maps route, distance, moving time, average pace, energy, steps, elevation and dominant movement.
-- The activity summary provides one **Share activity image** button. It exports a 1080 × 1350 social image containing the complete route on the loaded Google basemap and the key activity statistics; there is no endpoint-trimming control.
+- The activity summary provides one **Share activity image** button. Before export, a confirmation warns that the complete start and finish locations will be included. The 1080 × 1350 image contains the complete route on the loaded Google basemap and key statistics; there is no endpoint-trimming control.
+- GPS, sensor and calorie-estimation domain boundaries reject or sanitize non-finite values so `NaN`/infinity cannot corrupt saved metrics.
+- Room and DataStore are excluded from cloud backup/device transfer; generated share images stay in Android's non-backed-up cache and expire after 24 hours.
 - **USDA FoodData Central** remains the default food database. A small Cloud Function or other trusted backend may proxy requests if an API credential must be kept out of the APK.
 - Breakfast, Lunch and Dinner remain first-class calorie sections, with Snacks as a compact optional section.
 - Custom Meals, MyFitnessPal-inspired 7-day/30-day calorie and weight trend bar graphs, weather, step counting, background workout tracking and Social Recipes remain in scope as described below.
@@ -254,8 +258,8 @@ MotionFuel is not intended to:
 5. On final submission, MotionFuel creates the Firebase Authentication account with email/password.
 6. MotionFuel calculates BMR and TDEE locally using a pure Kotlin `CalculateMaintenanceCaloriesUseCase`.
 7. The app creates `users/{uid}` in Cloud Firestore with the profile and calculated maintenance calories. A local Room/DataStore copy is also retained for fast startup/offline display.
-8. If email verification is enabled, MotionFuel sends a Firebase verification email and shows a non-blocking or blocking verification state according to the final project policy.
-9. Today opens with **estimated maintenance calories**, daily calorie goal, calories consumed, calories remaining, Breakfast/Lunch/Dinner totals, steps, current weather, latest workout and one current insight.
+8. MotionFuel sends a Firebase verification email and blocks access at **Verify Email** until the refreshed Firebase user reports `isEmailVerified == true`.
+9. After verification, Today opens with **estimated maintenance calories**, daily calorie goal, calories consumed, calories remaining, Breakfast/Lunch/Dinner totals, steps, current weather, latest workout and one current insight.
 10. User can log food by searching the food database or by creating a Custom Meal with optional photo and macros.
 11. User taps **Start Run** or **Start Walk**.
 12. MotionFuel requests location/activity permissions in context, checks location quality and starts a foreground workout service.
@@ -266,7 +270,7 @@ MotionFuel is not intended to:
 17. MotionFuel saves the workout to Room first, then queues Firebase synchronisation.
 18. The Activity history shows the newly saved workout without displaying GPS-rejection diagnostics.
 19. The user taps the activity to open its summary with the Google Maps route, time, distance, pace, steps, elevation, estimated burn and dominant movement.
-20. The user can tap **Share activity image** to open Android's share sheet with a 1080 × 1350 image containing the complete mapped route and activity statistics.
+20. The user can tap **Share activity image**, confirm the full-route privacy warning, and open Android's share sheet with a 1080 × 1350 image containing the complete mapped route and activity statistics.
 21. The user opens **Progress** to log a new weight and view separate calorie and weight trend bar graphs for 7 or 30 days.
 22. When a new weight or activity level becomes current, MotionFuel recalculates estimated maintenance calories and shows the updated value on Today. It does not silently overwrite a custom calorie goal.
 23. If the user forgets the password, the Login screen provides Firebase password reset by email.
@@ -285,7 +289,9 @@ MotionFuel is not intended to:
 - Firebase Authentication email/password account creation and sign-in.
 - Password confirmation and client-side validation.
 - Firebase password reset email.
-- Optional Firebase email verification.
+- Mandatory Firebase email verification before private profile reads or dashboard access.
+- Verification refresh, resend and account-switch actions.
+- Firebase App Check with debug and Play Integrity providers separated by build variant.
 - Session persistence and sign-out.
 - Sign Up profile fields: name, age, sex, height, weight, activity level and optional fitness goal.
 - Immediate BMR/TDEE calculation after signup.
@@ -339,7 +345,8 @@ MotionFuel is not intended to:
 - DataStore for lightweight settings and cached profile preferences.
 - WorkManager retry queue for cloud sync.
 - Firebase Authentication + Firestore for account-backed cloud data.
-- Firestore Security Rules scoped by Firebase UID.
+- Firestore Security Rules scoped by Firebase UID with verified-email and schema validation.
+- Automated Firebase Emulator rules tests for unauthenticated, unverified, cross-user, malformed and valid-owner access.
 - Route backup preference and privacy-zone route masking.
 - Dark mode and accessibility support.
 
@@ -1499,11 +1506,12 @@ Possible states:
 ```text
 Loading
 SignedOut
+EmailVerificationRequired(email)
 SignedInProfileIncomplete(uid)
 SignedIn(uid)
 ```
 
-A successful Firebase Auth account without a complete Firestore profile must route to profile completion rather than Today.
+A Firebase account with an unverified email must never load private Firestore data or route to Today. After verification, an account without a complete Firestore profile routes to profile completion rather than Today.
 
 ### 19.3 Local-first principle
 
@@ -1530,9 +1538,12 @@ Firestore Security Rules use:
 ```text
 request.auth != null
 && request.auth.uid == userId
+&& request.auth.token.email_verified == true
 ```
 
-This removes the extra third-party identity-token verification gateway that the previous third-party identity architecture required.
+Initial profile creation is the only limited operation allowed before verification, because it is part of the atomic signup experience. The create request must use the authenticated token email, a field allowlist, accepted enum/range values and a server timestamp. Reads, updates, deletion and weight subcollection access require verified email. Unknown subcollections are denied.
+
+Firebase App Check complements Authentication and Security Rules by attesting that requests originate from the registered app. Debug builds use a registered debug token; release builds use Play Integrity. Enforcement is enabled only after valid debug/internal/release traffic is visible in Firebase metrics.
 
 ### 19.5 Cloud data minimisation
 
@@ -2318,7 +2329,7 @@ Every remote-data screen should have:
 | Sign Up — Profile | gather calorie inputs | age, sex, height, weight, activity level, optional goal | live BMR/TDEE preview |
 | Sign Up — Review | confirm calculated values | estimated BMR, maintenance calories, daily goal | final submit creates Firebase account/profile |
 | Forgot Password | recover access | email field, Send Reset Link | Firebase password-reset email |
-| Verify Email | optional verification | status, resend action | uses Firebase email verification if enabled |
+| Verify Email | mandatory verification gate | email, refresh, resend, use-another-account | blocks private Firestore reads and Today until Firebase reports a verified email |
 | Today | MyFitnessPal-inspired daily command centre | date header, maintenance calories, Goal − Food + Exercise = Remaining summary, meal progress, steps, weather, last workout, insight, quick-add action | updates from Room/Flow/profile state |
 | Food | MyFitnessPal-inspired nutrition diary | date selector, Breakfast/Lunch/Dinner/Snack sections, right-aligned totals, Add Food actions, macro row | instant local recalculation |
 | Food Search | database lookup | search, recent foods, results | debounced remote search |
@@ -2328,7 +2339,7 @@ Every remote-data screen should have:
 | Start Workout | readiness | walk/run, weather, location-provider state, permission state | starts location FGS from visible activity |
 | Live Workout | real-time run | Google Map, polyline, timer, distance, pace, steps, burn | ~1 Hz UI; route grows; background-safe service |
 | Workout Summary | review | Google Map route, metrics, weather, insight evidence | local save + sync status |
-| Workout Detail | historical detail and sharing | full Google Map route, distance, moving time, pace, energy, steps, elevation, dominant movement, Share activity image button | fit route bounds; attributed 1080 × 1350 share image; no endpoint trimming |
+| Workout Detail | historical detail and sharing | full Google Map route, distance, moving time, pace, energy, steps, elevation, dominant movement, Share activity image button | fit route bounds; full-route privacy confirmation; attributed 1080 × 1350 share image; no endpoint trimming |
 | Progress | MyFitnessPal-inspired long-term view | Overview header, Add Weight, calorie trend bar graph, weight trend bar graph, current maintenance calories | shared range selector for 7/30 days |
 | Calorie Trends | calorie bars | Compose Canvas bar graph, target line | tap bar for date/calories/target |
 | Weight Trends | weight bars | Compose Canvas bar graph, latest value and period change | tap bar for date/weight/change |
@@ -2572,6 +2583,10 @@ DataStore changes theme/units immediately without app restart.
 | FR-37 | Tapping a saved activity shall open a detailed summary containing its full mapped route and key workout statistics. |
 | FR-38 | The activity-detail screen shall provide a single share button that creates a 1080 × 1350 image with the complete Google Maps route and opens Android's system share sheet. |
 | FR-39 | The UI shall not display GPS quality, rejected-sample counts or GPS-noise-removal diagnostics. |
+| FR-40 | The system shall block dashboard and private Firestore access until the account email is verified and shall provide refresh/resend actions. |
+| FR-41 | The system shall reject non-finite GPS inputs and sanitize non-finite sensor/energy-estimation inputs before calculating or persisting metrics. |
+| FR-42 | Before sharing, the system shall warn that the complete route includes start and finish locations; cancelling shall produce no share action. |
+| FR-43 | Firebase App Check shall use a debug provider in debug builds and Play Integrity in release builds. |
 
 ---
 
@@ -2588,7 +2603,7 @@ DataStore changes theme/units immediately without app restart.
 | NFR-07 | Privacy | Raw high-frequency inertial sensor traces shall not be uploaded to cloud storage in the production build. |
 | NFR-08 | Privacy | Route cloud backup shall be user-configurable. |
 | NFR-09 | Security | All remote application traffic shall use encrypted transport. |
-| NFR-10 | Security | Firestore Security Rules shall require an authenticated Firebase user and restrict private user data to `request.auth.uid == userId`. |
+| NFR-10 | Security | Firestore rules shall require the authenticated owner and verified email for private access, validate field allowlists/types/ranges/timestamps, and default-deny undefined paths. |
 | NFR-11 | Maintainability | Domain algorithms shall not depend directly on Android UI classes. |
 | NFR-12 | Maintainability | Public domain/repository functions shall use descriptive names and documented non-obvious behaviour. |
 | NFR-13 | Usability | Starting a workout from the Today screen should require no more than two primary taps after permissions are granted. |
@@ -2600,6 +2615,9 @@ DataStore changes theme/units immediately without app restart.
 | NFR-19 | Data integrity | Every syncable mutation shall carry a stable identifier and update timestamp. |
 | NFR-20 | Explainability | Every adaptive recommendation shall expose at least one evidence source to the user. |
 | NFR-21 | Visual consistency | Today, Food and Progress shall use the documented MyFitnessPal-inspired hierarchy, card density, quick-add pattern and navigation familiarity while retaining original MotionFuel branding and assets. |
+| NFR-22 | Security | Firestore rules shall be exercised in CI through the Firebase Emulator against unauthenticated, unverified, cross-user and malformed-write cases. |
+| NFR-23 | Privacy | Workout notification details shall use private lock-screen visibility and generated share images shall expire from internal cache. |
+| NFR-24 | Supply-chain security | CI dependencies and Firebase test tools shall be pinned and reviewed; release secrets/signing material shall never be committed. |
 
 ---
 
@@ -2774,7 +2792,8 @@ DataStore changes theme/units immediately without app restart.
 - Firebase Authentication is the identity provider.
 - Email/password is required for the MVP.
 - Password reset uses Firebase reset email.
-- Optional email verification uses Firebase's verification flow.
+- Email verification is mandatory before the dashboard or private Firestore reads are available.
+- Verify Email offers refresh, resend and use-another-account actions without exposing raw Firebase errors.
 - Authentication calls are wrapped by `AuthRepository`.
 - UI never stores raw passwords.
 - Re-authentication should be considered before destructive account deletion if required by Firebase for a sensitive operation.
@@ -2788,9 +2807,17 @@ Core ownership rule:
 ```text
 request.auth != null
 && request.auth.uid == userId
+&& request.auth.token.email_verified == true
 ```
 
-The app must not trust a client-supplied owner ID that differs from the authenticated UID.
+The app must not trust a client-supplied owner ID that differs from the authenticated UID. Rules also allowlist fields, validate types and numeric ranges, preserve `createdAt`, and require `updatedAt == request.time` for established profiles. Unknown private subcollections remain denied until their schemas are explicitly defined.
+
+### 35.2.1 Firebase App Check
+
+- Debug builds use `firebase-appcheck-debug`; its generated debug token is registered only in the development Firebase project.
+- Release builds use `firebase-appcheck-playintegrity`.
+- App Check enforcement is enabled for Authentication/Firestore only after monitoring valid traffic and registering the Play release.
+- App Check is defense in depth and never replaces Authentication or Security Rules.
 
 ### 35.3 Data minimisation
 
@@ -2813,6 +2840,8 @@ Collect only what is necessary for enabled features.
 - Use app-private Room storage.
 - Do not log Firebase ID tokens, passwords, precise route coordinates, weight history or private meal notes in release logs.
 - Store only the minimum authentication/session state required by the Firebase SDK.
+- Set `allowBackup=false` and exclude the Room database, WAL/SHM files and `datastore/motionfuel.preferences_pb` in both cloud-backup and device-transfer rules. Generated images remain in the cache domain, which Android does not back up.
+- Expire generated share images from internal cache after 24 hours.
 
 ### 35.6 Location privacy
 
@@ -2823,7 +2852,10 @@ Controls:
 - route masking for optional cloud backup;
 - clear explanation of local vs cloud route data;
 - social image sharing occurs only after an explicit button press and includes the complete recorded route;
+- a confirmation explicitly warns that the complete start and finish locations will be included;
 - MotionFuel never publishes a route automatically.
+
+The no-trimming product decision is retained, but the user must make an informed confirmation each time. Future versions may add an optional endpoint privacy zone without changing the saved local route.
 
 ### 35.7 Weight/nutrition privacy
 
@@ -3044,6 +3076,10 @@ Possible policy:
 - all activity-factor TDEE calculations;
 - maintenance rounding and goal-separation logic;
 - privacy-zone masking.
+- non-finite latitude/longitude/altitude/accuracy rejection;
+- non-finite sensor feature sanitisation and bounded classifier confidence;
+- zero/negative/non-finite energy-estimator input handling;
+- manifest, cleartext, backup, `FileProvider`, App Check dependency and secret-literal invariants.
 
 ### 39.2 Deterministic sensor/location fixtures
 
@@ -3072,17 +3108,24 @@ Test with Firebase Authentication (preferably Emulator Suite where practical):
 - password-reset request;
 - sign-out;
 - app relaunch with existing session;
-- optional email-verification state.
+- mandatory email-verification gate;
+- resend verification;
+- refresh after the verification link is completed;
+- unverified accounts cannot reach Today or load the private profile.
 
 ### 39.4 Firestore Security Rules tests
 
 Use Firebase Emulator Suite to verify:
 
-- authenticated user can read/write own profile;
-- authenticated user can read/write own nutrition/workout/progress documents;
+- an unverified authenticated user can create only its valid initial profile but cannot read it;
+- a verified authenticated user can read/update its own valid profile;
+- a verified authenticated user can create valid bounded weight entries;
 - one user cannot read/write another user's private documents;
 - unauthenticated access is denied;
-- invalid field/range writes are denied where rules validate them.
+- invalid fields, types, ranges, token-email mismatches and client timestamps are denied;
+- undefined subcollections remain denied.
+
+These tests run as a separate GitHub Actions job using pinned Firebase CLI, JavaScript SDK and `@firebase/rules-unit-testing` versions.
 
 Also unit test `CalculateMaintenanceCaloriesUseCase` for male/female formulas and all activity factors.
 
@@ -3142,7 +3185,10 @@ On a physical device:
 - workout pause/resume/end;
 - saved-activity card navigation to Activity Detail;
 - activity image sharing waits for the map and sends a PNG through a content URI;
+- full-route sharing displays a privacy confirmation and Cancel creates no file/intent;
 - activity detail exposes no GPS quality, rejected-sample or noise-removal diagnostics;
+- email verification blocks private navigation and provides refresh/resend actions;
+- light and dark themes preserve readable contrast on authentication, dashboard, maps, charts and sharing flows;
 - permission/error states;
 - accessibility semantics.
 
@@ -3155,6 +3201,10 @@ Perform and document:
 - outdoor run;
 - backgrounded/locked-screen run;
 - poor-signal route section to confirm internal filtering and graceful degraded-location handling;
+- `NaN`/infinite location fixture injection to confirm rejection without a crash;
+- release App Check/Play Integrity success and rejected unattested-client requests;
+- private lock-screen notification content;
+- share-cache expiry after the retention window;
 - meal logging online/offline;
 - at least one synthetic/seeded 30-day history for chart/maintenance demonstration.
 
@@ -3872,6 +3922,8 @@ Avoid comments/followers/complex ranking until everything above works.
 - [ ] Custom multi-step Compose Sign Up page works.
 - [ ] Firebase email/password account creation works on a physical Android device.
 - [ ] Firebase login, sign-out and session restoration work.
+- [ ] Unverified accounts remain on Verify Email and cannot read private Firestore data or open Today.
+- [ ] Verify Email refresh and resend actions work.
 - [ ] Forgot Password sends a Firebase reset email.
 - [ ] Sign Up collects age, sex, height, weight and activity level.
 - [ ] Mifflin–St Jeor BMR is unit tested for male and female formula paths.
@@ -3883,6 +3935,8 @@ Avoid comments/followers/complex ranking until everything above works.
 - [ ] Recalculation does not silently overwrite a custom daily calorie goal.
 - [ ] Firestore profile is stored under the Firebase UID.
 - [ ] Firestore Security Rules prevent cross-user private-data access.
+- [ ] Firestore Emulator tests pass for unauthenticated, unverified, cross-user, schema and timestamp cases.
+- [ ] App Check uses debug attestation for debug builds and Play Integrity for release builds; production enforcement is enabled after registration.
 - [ ] Breakfast, Lunch and Dinner show their own calorie totals.
 - [ ] Food search returns real remote database results.
 - [ ] A Custom Meal can be saved with carbs/fat/protein and an optional picture.
@@ -3894,6 +3948,7 @@ Avoid comments/followers/complex ranking until everything above works.
 - [ ] Tapping a saved activity opens its detailed full-route summary.
 - [ ] The activity-detail screen shows one Share activity image button and no endpoint-trimming control or explanatory size text.
 - [ ] Sharing produces a 1080 × 1350 PNG containing the attributed Google basemap, complete route and key workout statistics.
+- [ ] Full-route sharing shows an explicit start/finish-location warning before opening the system share sheet.
 - [ ] No GPS quality, rejected-sample count or GPS-noise-removal diagnostic is visible to the user.
 - [ ] Workout steps update on a supported device or the missing-sensor state is handled cleanly.
 - [ ] Estimated workout burn and elapsed time are displayed.
@@ -3902,12 +3957,15 @@ Avoid comments/followers/complex ranking until everything above works.
 - [ ] Active workout continues when the phone is locked/backgrounded.
 - [ ] A foreground-service notification is visible during background tracking.
 - [ ] At least one stationary GPS drift/jump case is rejected.
+- [ ] Non-finite GPS and sensor inputs cannot enter route metrics or produce non-finite confidence/calorie values.
 - [ ] Completed workout saves to Room before Firestore sync.
 - [ ] Users can add/edit/delete weight entries.
 - [ ] AFEE exposes evidence for its insights.
 - [ ] WorkManager can synchronise a pending record when connectivity returns.
 - [ ] Route backup can be disabled and privacy-zone masking works.
 - [ ] No production secret is committed to the repository.
+- [ ] Maps key is restricted to the Android package, release signing certificate and required Maps SDK APIs.
+- [ ] Room, DataStore and share cache are excluded from cloud backup/device transfer, and stale share images expire.
 - [ ] Core permission-denied/offline/GPS-unavailable states are tested.
 - [ ] The assessor demo can be completed with deterministic backup location/sensor data if live GPS is unreliable.
 

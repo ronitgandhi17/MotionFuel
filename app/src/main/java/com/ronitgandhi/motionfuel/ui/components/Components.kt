@@ -259,6 +259,8 @@ fun RouteMap(
     }
     var mapLoaded by remember { mutableStateOf(false) }
     var nativeMap by remember { mutableStateOf<com.google.android.gms.maps.GoogleMap?>(null) }
+    val startMarkerState = remember(coordinates.firstOrNull()) { MarkerState(coordinates.firstOrNull() ?: initialPosition) }
+    val currentMarkerState = remember(coordinates.lastOrNull()) { MarkerState(coordinates.lastOrNull() ?: initialPosition) }
     LaunchedEffect(mapLoaded, nativeMap) { onMapReady(nativeMap.takeIf { mapLoaded }) }
     LaunchedEffect(mapLoaded, coordinates) {
         if (!mapLoaded) return@LaunchedEffect
@@ -280,8 +282,8 @@ fun RouteMap(
             // Exposes the loaded SDK map so the activity share flow can request an attributed bitmap.
             MapEffect(Unit) { map -> nativeMap = map }
             if (coordinates.size > 1) Polyline(points = coordinates, color = FuelGreen, width = 12f)
-            coordinates.firstOrNull()?.let { Marker(state = MarkerState(it), title = "Start") }
-            if (coordinates.size > 1) Marker(state = MarkerState(coordinates.last()), title = "Current position")
+            if (coordinates.isNotEmpty()) Marker(state = startMarkerState, title = "Start")
+            if (coordinates.size > 1) Marker(state = currentMarkerState, title = "Current position")
         }
         if (coordinates.isEmpty()) {
             Surface(

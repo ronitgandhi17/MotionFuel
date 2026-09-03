@@ -4,10 +4,11 @@ MotionFuel is a Kotlin/Jetpack Compose fitness and nutrition app that combines F
 
 ## Implemented in this revision
 
-- Firebase Authentication email/password login, registration, password reset, verification email and persisted sessions.
+- Firebase Authentication email/password login, registration, password reset, mandatory verification gate and persisted sessions.
+- Firebase App Check with debug attestation in debug builds and Play Integrity in release builds.
 - Multi-step signup for name, age, sex, height, weight and activity level.
 - Pure Kotlin Mifflin–St Jeor BMR and activity-factor TDEE calculation with unit tests.
-- Firestore user profiles stored at `users/{uid}` and protected by UID-based security rules.
+- Firestore user profiles stored at `users/{uid}` and protected by verified-owner, schema/range and server-timestamp rules.
 - MyFitnessPal-inspired light-first Today, Diary and Progress information hierarchy with original MotionFuel branding.
 - `Goal − Food + Exercise = Remaining` calorie summary and separate maintenance-calorie value.
 - Breakfast, Lunch, Dinner and Snacks diary sections with meal-specific food logging.
@@ -15,7 +16,7 @@ MotionFuel is a Kotlin/Jetpack Compose fitness and nutrition app that combines F
 - Room migration and offline weight-history persistence.
 - User-facing GPS quality indicator removed while internal point validation and drift rejection remain active.
 - Tappable saved activities with a detailed Google Maps route and workout-statistics summary.
-- One-button 1080 × 1350 social image sharing using the complete route and attributed Google basemap.
+- One-button 1080 × 1350 social image sharing using the complete route and attributed Google basemap, with a full-route privacy confirmation.
 - GPS rejection counts, noise-removal messages and endpoint-trimming controls removed from the UI.
 - Existing foreground workout service, sensor fusion, weather, food search, cloud-route privacy masking and AFEE insights retained.
 
@@ -37,14 +38,28 @@ Follow [docs/FIREBASE_SETUP.md](docs/FIREBASE_SETUP.md). The app intentionally s
 
 ```powershell
 .\gradlew.bat testDebugUnitTest
+.\gradlew.bat lintDebug
 .\gradlew.bat assembleDebug
+.\gradlew.bat assembleRelease
+```
+
+Firestore rules tests run with the Emulator Suite:
+
+```bash
+cd firebase-tests
+npm ci --ignore-scripts
+npm test
 ```
 
 The project uses AGP 9.0.1, Gradle 9.1.0, KSP 2.3.6, Google services plugin 4.5.0 and Firebase BoM 34.18.0.
 
+## Testing and security
+
+See [docs/SECURITY_TEST_REPORT.md](docs/SECURITY_TEST_REPORT.md) for the executed test matrix, confirmed defects, static security findings, positive controls and remaining device-test scope.
+
 ## Assessment demo
 
-1. Create a Firebase account and show the TDEE preview during signup.
+1. Create a Firebase account, show the TDEE preview, verify the email and refresh the verification screen.
 2. Open Today and explain maintenance calories versus the editable daily goal.
 3. Add foods to different Diary meals and show immediate calorie/macronutrient changes.
 4. Run the debug-only deterministic workout trace and show the filtered route and sensor-derived metrics.
@@ -55,9 +70,10 @@ The project uses AGP 9.0.1, Gradle 9.1.0, KSP 2.3.6, Google services plugin 4.5.
 ## Privacy
 
 - Passwords and sessions are managed by Firebase Authentication.
-- Firestore rules restrict private data to the authenticated UID.
+- Firestore rules restrict private data to the verified authenticated UID and validate supported document schemas.
+- App Check attests debug/release clients but does not replace Authentication or Firestore rules.
 - Detailed route backup defaults to off.
-- Shared activity images are created only after an explicit button press and currently include the complete recorded route.
+- Shared activity images are created only after a full-route warning is confirmed, include the complete recorded route and expire from cache.
 - High-frequency inertial samples remain on device.
 - `app/google-services.json`, `local.properties` and signing files are ignored by Git.
 - Calorie, burn and TDEE values are transparent wellness estimates rather than medical advice.

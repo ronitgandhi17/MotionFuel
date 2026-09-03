@@ -4,12 +4,23 @@ import android.app.Application
 import androidx.room.Room
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
+import com.google.firebase.FirebaseApp
+import com.google.firebase.appcheck.FirebaseAppCheck
 import com.ronitgandhi.motionfuel.data.local.MotionFuelDatabase
 import com.ronitgandhi.motionfuel.data.network.ContextApiClient
 import com.ronitgandhi.motionfuel.data.repository.MotionFuelRepository
 import com.ronitgandhi.motionfuel.data.settings.SettingsRepository
+import com.ronitgandhi.motionfuel.share.ActivityShareImage
 
 class MotionFuelApplication : Application() {
+    override fun onCreate() {
+        super.onCreate()
+        ActivityShareImage.deleteExpiredFiles(this)
+        if (FirebaseApp.getApps(this).isNotEmpty()) {
+            FirebaseAppCheck.getInstance().installAppCheckProviderFactory(MotionFuelAppCheckProvider.factory())
+        }
+    }
+
     // Creates the offline Room database only when it is first requested.
     val database: MotionFuelDatabase by lazy {
         Room.databaseBuilder(this, MotionFuelDatabase::class.java, "motionfuel.db")

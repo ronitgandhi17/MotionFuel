@@ -26,6 +26,13 @@ import kotlin.math.max
 object ActivityShareImage {
     private const val Width = 1080
     private const val Height = 1350
+    private const val RetentionMillis = 24L * 60L * 60L * 1_000L
+
+    fun deleteExpiredFiles(context: Context, nowMillis: Long = System.currentTimeMillis()) {
+        File(context.cacheDir, "shared_activities").listFiles()
+            ?.filter { it.isFile && nowMillis - it.lastModified() >= RetentionMillis }
+            ?.forEach(File::delete)
+    }
 
     // Renders a social-media-ready activity card and exposes it through a temporary content URI.
     fun createShareIntent(

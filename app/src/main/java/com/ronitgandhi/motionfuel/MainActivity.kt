@@ -53,6 +53,7 @@ import com.ronitgandhi.motionfuel.ui.screens.AuthenticationErrorScreen
 import com.ronitgandhi.motionfuel.ui.screens.AuthenticationLoadingScreen
 import com.ronitgandhi.motionfuel.ui.screens.FirebaseAuthScreen
 import com.ronitgandhi.motionfuel.ui.screens.FirebaseConfigurationRequiredScreen
+import com.ronitgandhi.motionfuel.ui.screens.EmailVerificationRequiredScreen
 import com.ronitgandhi.motionfuel.ui.screens.FoodScreen
 import com.ronitgandhi.motionfuel.ui.screens.ProgressScreen
 import com.ronitgandhi.motionfuel.ui.screens.ProfileIncompleteScreen
@@ -91,6 +92,16 @@ class MainActivity : ComponentActivity() {
                         onSignIn = authViewModel::signIn,
                         onSignUp = authViewModel::signUp,
                         onResetPassword = authViewModel::resetPassword,
+                    )
+                }
+                AuthLifecycle.EMAIL_VERIFICATION_REQUIRED -> MotionFuelTheme(darkTheme = systemDarkTheme) {
+                    EmailVerificationRequiredScreen(
+                        email = auth.verificationEmail,
+                        busy = auth.busy,
+                        message = auth.message,
+                        onRefresh = authViewModel::refreshEmailVerification,
+                        onResend = authViewModel::resendVerificationEmail,
+                        onSignOut = authViewModel::signOut,
                     )
                 }
                 AuthLifecycle.PROFILE_INCOMPLETE -> MotionFuelTheme(darkTheme = systemDarkTheme) {

@@ -15,6 +15,7 @@ object PrivacyZoneMasker {
 
 object EnergyEstimator {
     fun calories(weightKg: Double, durationSeconds: Long, activity: com.ronitgandhi.motionfuel.domain.model.ActivityType): Double {
+        if (!weightKg.isFinite() || weightKg <= 0.0 || durationSeconds <= 0L) return 0.0
         val met = when (activity) {
             com.ronitgandhi.motionfuel.domain.model.ActivityType.RUNNING -> 8.3
             com.ronitgandhi.motionfuel.domain.model.ActivityType.WALKING -> 3.5

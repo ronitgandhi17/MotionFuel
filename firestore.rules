@@ -5,11 +5,60 @@ service cloud.firestore {
       return request.auth != null && request.auth.uid == uid;
     }
 
-    match /users/{uid} {
-      allow read, create, update, delete: if signedInAs(uid);
+    function verifiedAs(uid) {
+      return signedInAs(uid) && request.auth.token.email_verified == true;
+    }
 
-      match /{collection}/{document=**} {
-        allow read, write: if signedInAs(uid);
+    function validProfile(data) {
+      return data.keys().hasOnly([
+          'name', 'email', 'age', 'sex', 'heightCm', 'weightKg',
+          'activityLevel', 'activityFactor', 'maintenanceCaloriesKcal',
+          'dailyCalorieGoalKcal', 'profileComplete', 'createdAt', 'updatedAt'
+        ])
+        && data.name is string && data.name.size() >= 2 && data.name.size() <= 100
+        && data.email is string && data.email == request.auth.token.email
+        && data.age is int && data.age >= 13 && data.age <= 120
+        && data.sex in ['MALE', 'FEMALE']
+        && data.heightCm is number && data.heightCm >= 100 && data.heightCm <= 250
+        && data.weightKg is number && data.weightKg >= 30 && data.weightKg <= 350
+        && data.activityLevel in ['SEDENTARY', 'LIGHT', 'MODERATE', 'VERY_ACTIVE', 'EXTREMELY_ACTIVE']
+        && data.activityFactor is number && data.activityFactor >= 1.2 && data.activityFactor <= 1.9
+        && data.maintenanceCaloriesKcal is int && data.maintenanceCaloriesKcal >= 100 && data.maintenanceCaloriesKcal <= 10000
+        && data.dailyCalorieGoalKcal is int && data.dailyCalorieGoalKcal >= 100 && data.dailyCalorieGoalKcal <= 10000
+        && data.profileComplete == true
+        && data.createdAt is timestamp
+        && (!('updatedAt' in data) || data.updatedAt is timestamp);
+    }
+
+    function validWeightEntry(data) {
+      return data.keys().hasOnly(['weightKg', 'recordedAt'])
+        && data.weightKg is number && data.weightKg >= 30 && data.weightKg <= 350
+        && data.recordedAt is timestamp;
+    }
+
+    match /users/{uid} {
+      allow create: if signedInAs(uid)
+        && validProfile(request.resource.data)
+        && request.resource.data.createdAt == request.time;
+      allow read: if verifiedAs(uid);
+      allow update: if verifiedAs(uid)
+        && validProfile(request.resource.data)
+        && (
+          ((!('profileComplete' in resource.data) || resource.data.profileComplete != true)
+            && request.resource.data.createdAt == request.time)
+          || (resource.data.profileComplete == true
+            && request.resource.data.createdAt == resource.data.createdAt
+            && request.resource.data.updatedAt == request.time)
+        );
+      allow delete: if verifiedAs(uid);
+
+      match /weightEntries/{entryId} {
+        allow read, delete: if verifiedAs(uid);
+        allow create, update: if verifiedAs(uid) && validWeightEntry(request.resource.data);
+      }
+
+      match /{document=**} {
+        allow read, write: if false;
       }
     }
 
