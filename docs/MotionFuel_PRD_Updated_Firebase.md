@@ -32,7 +32,7 @@ The most important product and architecture changes are:
 - Tapping a saved activity opens a Strava-inspired MotionFuel summary with the Google Maps route, distance, moving time, average pace, energy, steps, elevation and dominant movement.
 - The activity summary provides one **Share activity image** button. Before export, a confirmation warns that the complete start and finish locations will be included. The 1080 × 1350 image contains the complete route on the loaded Google basemap and key statistics; there is no endpoint-trimming control.
 - GPS, sensor and calorie-estimation domain boundaries reject or sanitize non-finite values so `NaN`/infinity cannot corrupt saved metrics.
-- Room, DataStore and generated share images are excluded from cloud backup and device transfer; share images expire from the internal cache after 24 hours.
+- Room and DataStore are excluded from cloud backup/device transfer; generated share images stay in Android's non-backed-up cache and expire after 24 hours.
 - **USDA FoodData Central** remains the default food database. A small Cloud Function or other trusted backend may proxy requests if an API credential must be kept out of the APK.
 - Breakfast, Lunch and Dinner remain first-class calorie sections, with Snacks as a compact optional section.
 - Custom Meals, MyFitnessPal-inspired 7-day/30-day calorie and weight trend bar graphs, weather, step counting, background workout tracking and Social Recipes remain in scope as described below.
@@ -2840,7 +2840,7 @@ Collect only what is necessary for enabled features.
 - Use app-private Room storage.
 - Do not log Firebase ID tokens, passwords, precise route coordinates, weight history or private meal notes in release logs.
 - Store only the minimum authentication/session state required by the Firebase SDK.
-- Set `allowBackup=false` and exclude the Room database, WAL/SHM files, `datastore/motionfuel.preferences_pb` and `cache/shared_activities/` in both cloud-backup and device-transfer rules.
+- Set `allowBackup=false` and exclude the Room database, WAL/SHM files and `datastore/motionfuel.preferences_pb` in both cloud-backup and device-transfer rules. Generated images remain in the cache domain, which Android does not back up.
 - Expire generated share images from internal cache after 24 hours.
 
 ### 35.6 Location privacy

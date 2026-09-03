@@ -23,7 +23,7 @@ The recommended source/configuration remediations have been implemented: mandato
 | MF-05 missing App Check | Providers implemented; Console registration/enforcement remains |
 | MF-06 schema-free Firestore writes | Fixed for implemented profile/weight schemas; Emulator tests added |
 | MF-07 local application-layer encryption | Residual risk accepted for MVP; sandbox, device encryption, backup denial and data deletion remain controls |
-| MF-08 incorrect DataStore backup rule | Fixed for cloud backup and device transfer |
+| MF-08 incorrect DataStore backup rule | Fixed for cloud backup and device transfer; share files remain in Android's non-backed-up cache |
 | MF-09 complete-route privacy | Mitigated with explicit confirmation; complete-route product requirement retained |
 | MF-10 weather coordinate disclosure | Corrected assessment: current client sends a fixed Melbourne context, not the device's live coordinate |
 | MF-11 lock-screen workout details | Fixed with private visibility and a generic public notification |
@@ -107,7 +107,7 @@ Room and Preferences DataStore contain precise routes, nutrition, weight, and pr
 
 `data_extraction_rules.xml` excludes `motionfuel.preferences_pb` from the `sharedpref` domain. Preferences DataStore normally stores this file under the app files `datastore/` directory. Device-transfer rules also exclude the Room database but not DataStore. Although `allowBackup="false"` is set, the rule should be corrected for defense in depth and OEM/device-transfer behavior.
 
-**Resolution:** cloud backup and device transfer now exclude the Room database/WAL/SHM, DataStore's file path and share cache.
+**Resolution:** cloud backup and device transfer now exclude the Room database/WAL/SHM and DataStore's file path. Share images remain in Android's cache domain, which is not part of the backup set.
 
 ### MF-09 — Full route sharing exposes start and finish locations (High privacy impact, accepted product behavior)
 

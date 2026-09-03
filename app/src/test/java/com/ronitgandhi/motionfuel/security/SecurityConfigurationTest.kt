@@ -51,11 +51,12 @@ class SecurityConfigurationTest {
     }
 
     @Test
-    fun backupRulesExcludeRoomDataStoreAndShareCacheFromTransfer() {
+    fun backupRulesExcludeRoomAndDataStoreFromTransfer() {
         val rules = appFile("res/xml/data_extraction_rules.xml")
         assertTrue(rules.contains("domain=\"file\" path=\"datastore/motionfuel.preferences_pb\""))
-        assertTrue(rules.contains("domain=\"cache\" path=\"shared_activities/\""))
         assertFalse(rules.contains("domain=\"sharedpref\" path=\"motionfuel.preferences_pb\""))
+        assertFalse(rules.contains("domain=\"root\""))
+        assertFalse(rules.contains("domain=\"external\""))
     }
 
     @Test

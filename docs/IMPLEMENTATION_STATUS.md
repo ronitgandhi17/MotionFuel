@@ -16,4 +16,4 @@
 | Google Maps basemap | Implemented; restricted key required | Maps Compose live/saved routes, dark map style and attributed share snapshot |
 | Input robustness | Implemented | Non-finite GPS rejection, sensor sanitisation and non-negative calorie estimation |
 | Share privacy | Implemented | Full-route confirmation, narrow FileProvider path, private cache and 24-hour expiry |
-| Backup/lock-screen privacy | Implemented | Room/DataStore/share exclusions and private foreground notification visibility |
+| Backup/lock-screen privacy | Implemented | Room/DataStore exclusions, cache-only shares and private foreground notification visibility |
