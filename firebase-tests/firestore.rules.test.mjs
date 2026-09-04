@@ -85,7 +85,18 @@ test("verified owners can update valid profile fields only with a server timesta
   const db = context(ownerId, ownerEmail, true).firestore();
   const reference = doc(db, "users", ownerId);
   await assertSucceeds(updateDoc(reference, { weightKg: 73, updatedAt: serverTimestamp() }));
+  await assertSucceeds(updateDoc(reference, {
+    name: "Updated Member",
+    age: 25,
+    heightCm: 176,
+    activityLevel: "VERY_ACTIVE",
+    activityFactor: 1.725,
+    maintenanceCaloriesKcal: 2800,
+    dailyCalorieGoalKcal: 2500,
+    updatedAt: serverTimestamp(),
+  }));
   await assertFails(updateDoc(reference, { weightKg: 351, updatedAt: serverTimestamp() }));
+  await assertFails(updateDoc(reference, { email: "attacker@example.com", updatedAt: serverTimestamp() }));
 });
 
 test("weight entries require a verified owner and bounded schema", async () => {

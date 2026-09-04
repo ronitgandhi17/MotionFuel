@@ -13,8 +13,10 @@ import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.SetOptions
 import com.ronitgandhi.motionfuel.domain.algorithm.CalculateMaintenanceCaloriesUseCase
+import com.ronitgandhi.motionfuel.domain.algorithm.ProfileUpdateValidator
 import com.ronitgandhi.motionfuel.domain.model.ActivityLevel
 import com.ronitgandhi.motionfuel.domain.model.BiologicalSex
+import com.ronitgandhi.motionfuel.domain.model.ProfileUpdate
 import com.ronitgandhi.motionfuel.domain.model.UserProfile
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -183,6 +185,62 @@ class FirebaseAuthViewModel(application: Application) : AndroidViewModel(applica
                 userDocument.collection("weightEntries").add(
                     mapOf("weightKg" to weightKg, "recordedAt" to FieldValue.serverTimestamp()),
                 ).await()
+            }.onFailure(::showFailure)
+        }
+    }
+
+    // Updates editable profile fields while preserving the Firebase-authenticated email address.
+    fun updateProfile(update: ProfileUpdate) {
+        val current = mutableState.value.profile ?: return
+        val user = auth?.currentUser ?: return
+        ProfileUpdateValidator.validate(update)?.let { error ->
+            mutableState.update { it.copy(message = error) }
+            return
+        }
+        val normalized = update.copy(name = update.name.trim())
+        mutableState.update { it.copy(busy = true, message = null) }
+        viewModelScope.launch {
+            runCatching {
+                val calories = calculator(normalized.age, normalized.sex, normalized.heightCm, normalized.weightKg, normalized.activityLevel)
+                val updated = current.copy(
+                    name = normalized.name,
+                    age = normalized.age,
+                    sex = normalized.sex,
+                    heightCm = normalized.heightCm,
+                    weightKg = normalized.weightKg,
+                    activityLevel = normalized.activityLevel,
+                    maintenanceCaloriesKcal = calories.tdeeKcal,
+                    dailyCalorieGoalKcal = normalized.dailyCalorieGoalKcal,
+                )
+                user.updateProfile(UserProfileChangeRequest.Builder().setDisplayName(normalized.name).build()).await()
+                val userDocument = requireNotNull(firestore).collection("users").document(current.userId)
+                val batch = requireNotNull(firestore).batch()
+                batch.set(
+                    userDocument,
+                    mapOf(
+                        "name" to updated.name,
+                        "age" to updated.age,
+                        "sex" to updated.sex.name,
+                        "heightCm" to updated.heightCm,
+                        "weightKg" to updated.weightKg,
+                        "activityLevel" to updated.activityLevel.name,
+                        "activityFactor" to updated.activityLevel.factor,
+                        "maintenanceCaloriesKcal" to updated.maintenanceCaloriesKcal,
+                        "dailyCalorieGoalKcal" to updated.dailyCalorieGoalKcal,
+                        "updatedAt" to FieldValue.serverTimestamp(),
+                    ),
+                    SetOptions.merge(),
+                )
+                if (updated.weightKg != current.weightKg) {
+                    batch.set(
+                        userDocument.collection("weightEntries").document(),
+                        mapOf("weightKg" to updated.weightKg, "recordedAt" to FieldValue.serverTimestamp()),
+                    )
+                }
+                batch.commit().await()
+                updated
+            }.onSuccess { updated ->
+                mutableState.update { it.copy(profile = updated, busy = false, message = "Profile updated.") }
             }.onFailure(::showFailure)
         }
     }

@@ -50,6 +50,7 @@ import com.ronitgandhi.motionfuel.domain.model.WorkoutStatus
 import com.ronitgandhi.motionfuel.domain.model.WorkoutSummary
 import com.ronitgandhi.motionfuel.domain.model.WorkoutType
 import com.ronitgandhi.motionfuel.domain.model.UserProfile
+import com.ronitgandhi.motionfuel.domain.model.ProfileUpdate
 import com.ronitgandhi.motionfuel.ui.screens.ActivityScreen
 import com.ronitgandhi.motionfuel.ui.screens.ActivityDetailScreen
 import com.ronitgandhi.motionfuel.ui.screens.AuthenticationErrorScreen
@@ -124,7 +125,10 @@ class MainActivity : ComponentActivity() {
                         MotionFuelRoot(
                             viewModel = motionFuelViewModel,
                             profile = requireNotNull(auth.profile),
+                            profileBusy = auth.busy,
+                            profileMessage = auth.message,
                             onWeightChanged = authViewModel::updateCurrentWeight,
+                            onUpdateProfile = authViewModel::updateProfile,
                             onSignOut = authViewModel::signOut,
                         )
                     }
@@ -146,7 +150,10 @@ private enum class MainTab(val label: String, val icon: ImageVector) {
 private fun MotionFuelRoot(
     viewModel: MotionFuelViewModel,
     profile: UserProfile,
+    profileBusy: Boolean,
+    profileMessage: String?,
     onWeightChanged: (Double) -> Unit,
+    onUpdateProfile: (ProfileUpdate) -> Unit,
     onSignOut: () -> Unit,
 ) {
     LaunchedEffect(profile.weightKg) { viewModel.setProfileWeight(profile.weightKg) }
@@ -170,6 +177,13 @@ private fun MotionFuelRoot(
     var selectedWorkout by remember { mutableStateOf<WorkoutSummary?>(null) }
     var showStartDialog by remember { mutableStateOf(false) }
     var pendingRealType by remember { mutableStateOf<WorkoutType?>(null) }
+    var foodIsRootPage by remember { mutableStateOf(true) }
+    var profileIsRootPage by remember { mutableStateOf(true) }
+    val rootSwipeEnabled = !showStartDialog && when (MainTab.entries[pagerState.currentPage]) {
+        MainTab.FOOD -> foodIsRootPage
+        MainTab.PROFILE -> profileIsRootPage
+        else -> true
+    }
 
     // Starts real tracking only after Android grants at least one location permission.
     val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { grants ->
@@ -216,6 +230,7 @@ private fun MotionFuelRoot(
         ) { padding ->
             HorizontalPager(
                 state = pagerState,
+                userScrollEnabled = rootSwipeEnabled,
                 modifier = Modifier.fillMaxSize().padding(padding),
                 key = { MainTab.entries[it].name },
             ) { page ->
@@ -253,6 +268,7 @@ private fun MotionFuelRoot(
                         onAddSavedFood = viewModel::addSavedFood,
                         onDeleteNutritionEntry = viewModel::deleteNutritionEntry,
                         onDeleteSavedFood = viewModel::deleteSavedFood,
+                        onRootPageChanged = { foodIsRootPage = it },
                     )
                     MainTab.PROGRESS -> ProgressScreen(
                         nutritionHistory = nutritionHistory,
@@ -267,10 +283,14 @@ private fun MotionFuelRoot(
                     MainTab.PROFILE -> ProfileScreen(
                         profile = profile,
                         settings = settings,
+                        busy = profileBusy,
+                        message = profileMessage,
                         onUnitsChanged = viewModel::setUnits,
                         onRouteBackupChanged = viewModel::setRouteBackup,
                         onDarkThemeChanged = viewModel::setDarkTheme,
                         onDeleteData = viewModel::deleteAllLocalData,
+                        onUpdateProfile = onUpdateProfile,
+                        onRootPageChanged = { profileIsRootPage = it },
                         onSignOut = onSignOut,
                     )
                 }
