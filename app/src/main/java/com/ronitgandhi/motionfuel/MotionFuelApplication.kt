@@ -11,11 +11,13 @@ import com.ronitgandhi.motionfuel.data.network.ContextApiClient
 import com.ronitgandhi.motionfuel.data.repository.MotionFuelRepository
 import com.ronitgandhi.motionfuel.data.settings.SettingsRepository
 import com.ronitgandhi.motionfuel.share.ActivityShareImage
+import com.ronitgandhi.motionfuel.share.FoodShareImage
 
 class MotionFuelApplication : Application() {
     override fun onCreate() {
         super.onCreate()
         ActivityShareImage.deleteExpiredFiles(this)
+        FoodShareImage.deleteExpiredFiles(this)
         if (FirebaseApp.getApps(this).isNotEmpty()) {
             FirebaseAppCheck.getInstance().installAppCheckProviderFactory(MotionFuelAppCheckProvider.factory())
         }

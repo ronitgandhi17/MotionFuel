@@ -241,6 +241,7 @@ private fun MotionFuelRoot(
                         onActivitySelected = { selectedWorkout = it },
                     )
                     MainTab.FOOD -> FoodScreen(
+                        darkTheme = settings.darkTheme,
                         totals = totals,
                         entries = entries,
                         savedFoods = savedFoods,
