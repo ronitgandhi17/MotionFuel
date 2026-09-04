@@ -1,9 +1,9 @@
 {
-  "name": "motionfuel-firestore-rules-tests",
+  "name": "motionfuel-firebase-rules-tests",
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "firebase emulators:exec --config ../firebase.json --project motionfuel-test --only firestore \"node --test firestore.rules.test.mjs\""
+    "test": "firebase emulators:exec --config ../firebase.json --project motionfuel-test --only firestore,storage \"node --test firestore.rules.test.mjs\""
   },
   "devDependencies": {
     "@firebase/rules-unit-testing": "5.0.2",

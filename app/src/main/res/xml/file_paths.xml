@@ -2,5 +2,6 @@
 <paths xmlns:android="http://schemas.android.com/apk/res/android">
     <cache-path name="shared_activities" path="shared_activities/" />
     <cache-path name="shared_foods" path="shared_foods/" />
+    <cache-path name="profile_photos" path="profile_photos/" />
     <files-path name="food_photos" path="food_photos/" />
 </paths>

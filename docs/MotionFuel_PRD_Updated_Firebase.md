@@ -4,7 +4,7 @@
 **Primary stack:** Kotlin, Android Studio, Jetpack Compose, Material Design 3, Firebase Authentication, Cloud Firestore, Firebase Storage, Room, DataStore, Retrofit/OkHttp, Google Maps SDK for Android  
 **Target platform:** Android 10+ (API 29+) for the university build, with graceful feature degradation when optional sensors are unavailable  
 **Architecture:** Feature-oriented Clean Architecture + MVVM  
-**Document status:** Version 2.0 — root navigation and profile editing revision, September 2026
+**Document status:** Version 2.1 — profile-picture revision, September 2026
 
 ---
 
@@ -25,6 +25,7 @@ The most important product and architecture changes are:
 - Cloud Firestore stores user profile, calorie target, nutrition logs, workouts, progress records and settings using the Firebase Authentication UID as the owner key.
 - Firestore Security Rules enforce UID ownership, verified-email access, document field allowlists, types, ranges and trusted server timestamps.
 - Firebase App Check uses the debug provider only in debug builds and Play Integrity in release builds; production enforcement is enabled in Firebase Console after release registration.
+- Sign Up and Edit profile let the user optionally select a profile picture from Camera or Gallery; the app compresses it before writing to the owner's fixed Firebase Storage avatar path and stores only its download URL in Firestore.
 - **Google Maps SDK for Android + Maps Compose** remains the required map implementation for live and saved run routes.
 - The full application UI follows a **MyFitnessPal-inspired visual hierarchy and interaction model**: a card-based Today screen, diary-style meal sections, prominent calorie remaining summary, quick-add actions, bottom navigation and compact Progress cards. MotionFuel retains its own branding, colours, icons, copy and original implementation.
 - The user-facing GPS quality indicator is removed. Location validation and drift rejection continue internally, and the UI only shows a general location-unavailable message when tracking cannot safely continue.
@@ -345,6 +346,7 @@ MotionFuel is not intended to:
 - DataStore for lightweight settings and cached profile preferences.
 - WorkManager retry queue for cloud sync.
 - Firebase Authentication + Firestore for account-backed cloud data.
+- Firebase Storage for owner-only profile pictures with image type and size validation.
 - Firestore Security Rules scoped by Firebase UID with verified-email and schema validation.
 - Automated Firebase Emulator rules tests for unauthenticated, unverified, cross-user, malformed and valid-owner access.
 - Route backup preference and privacy-zone route masking.
@@ -1119,8 +1121,9 @@ Sign Up UI
 → CalculateMaintenanceCaloriesUseCase
 → FirebaseAuth.createUserWithEmailAndPassword()
 → receive Firebase UID
+→ optionally compress and upload profile picture to profile-images/{uid}/avatar
 → create users/{uid} profile document
-→ store maintenanceCaloriesKcal + calorieTargetKcal
+→ store maintenanceCaloriesKcal + calorieTargetKcal + optional photoUrl
 → cache profile locally
 → optionally send Firebase email verification
 → navigate to Today
@@ -1460,15 +1463,17 @@ Ownership is derived from Firebase Authentication UID.
 
 ### 18.6 Firebase Storage
 
-Storage is optional for the assessed MVP.
+Storage is required for optional profile pictures in the assessed MVP.
 
 Potential uses:
 
-- profile image;
+- profile image at the fixed owner path `profile-images/{uid}/avatar`;
 - cloud-backed Custom Meal photo;
 - Social Recipe image in Phase 2.
 
 Custom Meal photos may remain local-only initially to reduce scope.
+
+The Android client accepts only Camera or system Photo Picker content URIs, decodes the selected image off the main thread, scales the longest side to at most 1,024 px and uploads an `image/jpeg` result. Storage Rules require `request.auth.uid == uid`, an image content type and a size below 5 MB. Firestore stores only the optional `photoUrl`; deleting the avatar clears that field and deletes the fixed Storage object.
 
 ### 18.7 Firebase Cloud Functions / trusted backend
 
@@ -1972,6 +1977,7 @@ UserProfile
 - proteinTargetG: Double?
 - carbohydrateTargetG: Double?
 - fatTargetG: Double?
+- photoUrl: String?               // owner avatar download URL; image bytes remain in Storage
 - profileComplete: Boolean
 - createdAt: Instant
 - updatedAt: Instant
@@ -1979,7 +1985,7 @@ UserProfile
 
 `maintenanceCaloriesKcal` is recalculated from the profile inputs. `calorieTargetKcal` is separately editable so a calculated maintenance-calorie estimate is never confused with the user's chosen goal.
 
-The Profile root screen provides an **Edit profile** action. The nested editor permits changes to display name, age, biological sex used by the equation, height, current weight, activity level and daily calorie target. Saving validates the same numeric boundaries as Firestore, recalculates maintenance calories, updates the Firebase Authentication display name and merges the allowed fields into `users/{uid}`. Email is shown read-only because it is the verified Firebase Authentication identity; it is excluded from the update payload and Firestore continues to require the stored email to equal the authenticated token email.
+The Profile root screen provides an **Edit profile** action. The nested editor permits changes to profile picture, display name, age, biological sex used by the equation, height, current weight, activity level and daily calorie target. Saving validates the same numeric boundaries as Firestore, recalculates maintenance calories, updates the Firebase Authentication display name and merges the allowed fields into `users/{uid}`. Email is shown read-only because it is the verified Firebase Authentication identity; it is excluded from the update payload and Firestore continues to require the stored email to equal the authenticated token email.
 
 ### 26.2 Workout
 
@@ -2236,6 +2242,7 @@ Store:
 - maintenance calories;
 - current calorie target;
 - goal type;
+- optional profile-picture URL;
 - timestamps/profile-complete state.
 
 ### 27.5 Workout records
@@ -2349,7 +2356,7 @@ Every remote-data screen should have:
 | Splash | Restore app state | Logo, loading state | checks `FirebaseAuth.currentUser`, then profile completion |
 | Onboarding | Explain app + privacy | 3–4 concise pages | no permission spam; explains estimates/background workout |
 | Login | authenticate existing user | email, password, Forgot Password, Login CTA | Firebase sign-in, validation, loading/error states |
-| Sign Up — Account | create account details | name, email, password, confirm password | next step only when valid |
+| Sign Up — Account | create account details | optional profile picture, name, email, password, confirm password | Camera/Gallery selection; next step only when fields are valid |
 | Sign Up — Profile | gather calorie inputs | age, sex, height, weight, activity level, optional goal | live BMR/TDEE preview |
 | Sign Up — Review | confirm calculated values | estimated BMR, maintenance calories, daily goal | final submit creates Firebase account/profile |
 | Forgot Password | recover access | email field, Send Reset Link | Firebase password-reset email |
@@ -2366,6 +2373,7 @@ Every remote-data screen should have:
 | Workout Detail | historical detail and sharing | full Google Map route, distance, moving time, pace, energy, steps, elevation, dominant movement, Share activity image button | fit route bounds; full-route privacy confirmation; attributed 1080 × 1350 share image; no endpoint trimming |
 | Progress | MyFitnessPal-inspired long-term view | Overview header, Add Weight, calorie trend bar graph, weight trend bar graph, current maintenance calories | independent Day/Week/Month selector on each chart card |
 | Calorie Trends | calorie bars | Compose Canvas bar graph, target line | tap bar for date/calories/target |
+| Edit Profile | update account-owned profile | profile picture, name, read-only email, body/activity inputs, calorie goal | Camera/Gallery/Remove picture; validated Firestore merge and Storage update |
 | Weight Trends | weight bars | Compose Canvas bar graph, latest value and period change | tap bar for date/weight/change |
 | Maintenance Detail | explain TDEE | age/sex/height/weight/activity factor, BMR, TDEE | recalculation explanation; use as goal action |
 | Insights | optional deep view | AFEE cards/evidence | may be nested under Progress |
@@ -2625,6 +2633,8 @@ DataStore changes theme/units immediately without app restart.
 | FR-53 | Horizontal swipe navigation shall operate only on the five root destinations—Today, Activity, Food, Progress and Profile—and shall be disabled on workout, activity-summary, saved-food-detail and edit-profile pages. |
 | FR-54 | Profile shall provide an Edit profile page for name, age, biological sex, height, weight, activity level and daily calorie goal; maintenance calories shall be recalculated and saved to the signed-in user's Firestore document. |
 | FR-55 | The verified Firebase email shall be visible but read-only in Edit profile, omitted from the client update payload and protected by Firestore rules requiring it to equal the authenticated token email. |
+| FR-56 | Sign Up and Edit profile shall allow an optional profile picture chosen through Camera or Gallery without requesting broad camera or media permissions. |
+| FR-57 | Profile pictures shall be scaled and JPEG-compressed before upload to `profile-images/{uid}/avatar`; Storage Rules shall restrict access to the authenticated owner and reject non-images and files of 5 MB or more. |
 
 ---
 
@@ -2863,7 +2873,7 @@ Collect only what is necessary for enabled features.
 
 - No contacts access.
 - No microphone.
-- Camera/photo access only when the user explicitly adds a Custom Meal/recipe image.
+- Camera/photo access only when the user explicitly adds a profile or Custom Meal/recipe image.
 - Raw inertial sensor traces are processed locally and are not uploaded in the production build.
 
 ### 35.4 API keys and secrets
@@ -3165,6 +3175,8 @@ Use Firebase Emulator Suite to verify:
 
 These tests run as a separate GitHub Actions job using pinned Firebase CLI, JavaScript SDK and `@firebase/rules-unit-testing` versions.
 
+Storage Emulator tests additionally verify owner upload/read, unauthenticated and cross-user denial, non-image rejection and denial of unsupported avatar paths.
+
 Also unit test `CalculateMaintenanceCaloriesUseCase` for male/female formulas and all activity factors.
 
 ### 39.5 Food tests
@@ -3259,6 +3271,7 @@ The assessed MVP should include only the features required to complete the main 
 - Firebase Authentication email/password;
 - password reset;
 - name, age, sex, height, weight and activity level profile fields;
+- optional profile picture during signup and from Edit profile;
 - Mifflin–St Jeor BMR calculation;
 - TDEE maintenance-calorie calculation;
 - maintenance calories displayed on Today;
