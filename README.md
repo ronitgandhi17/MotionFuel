@@ -18,6 +18,7 @@ MotionFuel is a Kotlin/Jetpack Compose fitness and nutrition app that combines F
 - Tappable saved-food details with an Add to meal Breakfast/Lunch/Dinner selector and image/nutrition sharing through Android's system share sheet.
 - Saved-food swipe actions: right to choose a meal and add it to today, left to confirm deletion.
 - Diary editing: swipe a logged food left under Breakfast, Lunch, Dinner or Snack, then confirm to remove only that day's entry.
+- Diary food rows inherit their meal card colour in light and dark themes, with the delete colour shown only during a left swipe.
 - Live weather temperature, humidity, wind and rain context on the Track Activity screen.
 - Room migration and offline weight-history persistence.
 - User-facing GPS quality indicator removed while internal point validation and drift rejection remain active.
