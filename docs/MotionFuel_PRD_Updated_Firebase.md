@@ -4,7 +4,7 @@
 **Primary stack:** Kotlin, Android Studio, Jetpack Compose, Material Design 3, Firebase Authentication, Cloud Firestore, Firebase Storage, Room, DataStore, Retrofit/OkHttp, Google Maps SDK for Android  
 **Target platform:** Android 10+ (API 29+) for the university build, with graceful feature degradation when optional sensors are unavailable  
 **Architecture:** Feature-oriented Clean Architecture + MVVM  
-**Document status:** Version 1.9 — saved-food social-card sharing revision, September 2026
+**Document status:** Version 2.0 — root navigation and profile editing revision, September 2026
 
 ---
 
@@ -1979,6 +1979,8 @@ UserProfile
 
 `maintenanceCaloriesKcal` is recalculated from the profile inputs. `calorieTargetKcal` is separately editable so a calculated maintenance-calorie estimate is never confused with the user's chosen goal.
 
+The Profile root screen provides an **Edit profile** action. The nested editor permits changes to display name, age, biological sex used by the equation, height, current weight, activity level and daily calorie target. Saving validates the same numeric boundaries as Firestore, recalculates maintenance calories, updates the Firebase Authentication display name and merges the allowed fields into `users/{uid}`. Email is shown read-only because it is the verified Firebase Authentication identity; it is excluded from the update payload and Firestore continues to require the stored email to equal the authenticated token email.
+
 ### 26.2 Workout
 
 ```text
@@ -2435,7 +2437,7 @@ This is more realistic than a permanent `Insights` tab because Progress naturall
 
 The bar should visually follow MyFitnessPal's compact labelled navigation style. A prominent quick-add button or sheet provides shortcuts for **Food**, **Weight** and **Workout**, while the five MotionFuel destinations remain available for the assessed feature set.
 
-Users may also swipe horizontally across the main content area. A left swipe advances to the next bottom-navigation destination and a right swipe returns to the previous destination; the selected navigation item and pager always remain synchronised. Focused workout and activity-detail screens remain outside this pager.
+Users may also swipe horizontally only while one of these five root destinations is visible. A left swipe advances to the next bottom-navigation destination and a right swipe returns to the previous destination; the selected navigation item and pager always remain synchronised. Horizontal paging is disabled whenever a nested saved-food detail or Edit profile page is visible, while focused workout and activity-detail screens remain outside the pager entirely. Modal data-entry and confirmation dialogs consume their own gestures and never switch tabs.
 
 ### Primary actions
 
@@ -2620,6 +2622,9 @@ DataStore changes theme/units immediately without app restart.
 | FR-50 | Within today's Breakfast, Lunch, Dinner and Snack cards, swiping a logged food left shall expose Delete; confirmation shall remove only that diary entry and recalculate the meal and daily nutrition totals without deleting its reusable saved-food record. |
 | FR-51 | A logged diary-food row shall visually inherit its containing meal card colour in light and dark themes; the destructive background shall be visible only while swiping left. |
 | FR-52 | Share food shall generate a 1080 × 1350 social-media card containing MotionFuel branding, the food picture, name, calories, carbohydrates, protein and fat, then open Android's system share sheet with temporary read permission. |
+| FR-53 | Horizontal swipe navigation shall operate only on the five root destinations—Today, Activity, Food, Progress and Profile—and shall be disabled on workout, activity-summary, saved-food-detail and edit-profile pages. |
+| FR-54 | Profile shall provide an Edit profile page for name, age, biological sex, height, weight, activity level and daily calorie goal; maintenance calories shall be recalculated and saved to the signed-in user's Firestore document. |
+| FR-55 | The verified Firebase email shall be visible but read-only in Edit profile, omitted from the client update payload and protected by Firestore rules requiring it to equal the authenticated token email. |
 
 ---
 
@@ -3978,6 +3983,8 @@ Avoid comments/followers/complex ranking until everything above works.
 - [ ] Swiping a food left within today's Breakfast, Lunch, Dinner or Snack card asks for confirmation and removes only that day's diary entry, with totals recalculated automatically.
 - [ ] Logged-food rows blend into their meal card in both themes and reveal the destructive colour only during a left swipe.
 - [ ] Share food creates a branded image card containing the food picture, name, calories, carbohydrates, protein and fat, and the card can be sent through Android's system share sheet.
+- [ ] Horizontal swipes change destinations only while one of the five root tab pages is visible and do nothing on nested detail, workout or profile-edit pages.
+- [ ] Edit profile updates the allowed personal and goal fields, recalculates maintenance calories and never permits the Firebase email to be edited.
 - [ ] Nutrition totals remain available offline after being saved.
 - [ ] The Calories and Weight cards each provide their own working Day, Week and Month selector and may display different selected periods.
 - [ ] Calorie bars show historical target references and weight bars never treat missing measurements as zero.

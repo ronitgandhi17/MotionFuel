@@ -31,6 +31,16 @@ data class UserProfile(
     val profileComplete: Boolean = true,
 )
 
+data class ProfileUpdate(
+    val name: String,
+    val age: Int,
+    val sex: BiologicalSex,
+    val heightCm: Double,
+    val weightKg: Double,
+    val activityLevel: ActivityLevel,
+    val dailyCalorieGoalKcal: Int,
+)
+
 data class WeightEntry(
     val id: String,
     val weightKg: Double,

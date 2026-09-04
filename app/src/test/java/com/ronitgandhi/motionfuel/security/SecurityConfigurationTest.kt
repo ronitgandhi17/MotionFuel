@@ -27,6 +27,7 @@ class SecurityConfigurationTest {
         val paths = appFile("res/xml/file_paths.xml")
         assertTrue(paths.contains("<cache-path"))
         assertTrue(paths.contains("path=\"shared_activities/\""))
+        assertTrue(paths.contains("path=\"shared_foods/\""))
         assertTrue(paths.contains("<files-path"))
         assertTrue(paths.contains("path=\"food_photos/\""))
         assertFalse(paths.contains("path=\".\""))
@@ -85,6 +86,17 @@ class SecurityConfigurationTest {
         assertTrue(source.contains("if (!user.isEmailVerified)"))
         assertTrue(source.contains("AuthLifecycle.EMAIL_VERIFICATION_REQUIRED"))
         assertTrue(source.contains("getIdToken(true).await()"))
+    }
+
+    @Test
+    fun profileEditingKeepsFirebaseEmailImmutable() {
+        val screen = appFile("java/com/ronitgandhi/motionfuel/ui/screens/DashboardScreens.kt")
+        val authSource = appFile("java/com/ronitgandhi/motionfuel/auth/FirebaseAuthViewModel.kt")
+        val rules = File("../firestore.rules").readText()
+        assertTrue(screen.contains("readOnly = true"))
+        assertTrue(screen.contains("Email is managed by Firebase Authentication"))
+        assertTrue(authSource.contains("preserving the Firebase-authenticated email address"))
+        assertTrue(rules.contains("data.email == request.auth.token.email"))
     }
 
     @Test

@@ -1,5 +1,6 @@
 package com.ronitgandhi.motionfuel.ui.screens
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -19,9 +20,11 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Cloud
+import androidx.compose.material.icons.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.DeleteForever
 import androidx.compose.material.icons.rounded.DirectionsRun
+import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.DarkMode
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.Logout
@@ -31,6 +34,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
@@ -43,6 +47,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -60,11 +65,16 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.dp
 import com.ronitgandhi.motionfuel.domain.algorithm.PrivacyZone
 import com.ronitgandhi.motionfuel.domain.algorithm.PrivacyZoneMasker
+import com.ronitgandhi.motionfuel.domain.algorithm.CalculateMaintenanceCaloriesUseCase
+import com.ronitgandhi.motionfuel.domain.algorithm.ProfileUpdateValidator
+import com.ronitgandhi.motionfuel.domain.model.ActivityLevel
+import com.ronitgandhi.motionfuel.domain.model.BiologicalSex
 import com.ronitgandhi.motionfuel.domain.model.GeoPoint
 import com.ronitgandhi.motionfuel.domain.model.Insight
 import com.ronitgandhi.motionfuel.domain.model.MealType
 import com.ronitgandhi.motionfuel.domain.model.NutritionEntry
 import com.ronitgandhi.motionfuel.domain.model.NutritionTotals
+import com.ronitgandhi.motionfuel.domain.model.ProfileUpdate
 import com.ronitgandhi.motionfuel.domain.model.TrendPoint
 import com.ronitgandhi.motionfuel.domain.model.UnitSystem
 import com.ronitgandhi.motionfuel.domain.model.UserProfile
@@ -389,24 +399,57 @@ private fun WeightDialog(currentWeight: Double, onDismiss: () -> Unit, onSave: (
 fun ProfileScreen(
     profile: UserProfile,
     settings: UserSettings,
+    busy: Boolean,
+    message: String?,
     onUnitsChanged: (UnitSystem) -> Unit,
     onRouteBackupChanged: (Boolean) -> Unit,
     onDarkThemeChanged: (Boolean) -> Unit,
     onDeleteData: () -> Unit,
+    onUpdateProfile: (ProfileUpdate) -> Unit,
+    onRootPageChanged: (Boolean) -> Unit,
     onSignOut: () -> Unit,
 ) {
     var confirmDelete by remember { mutableStateOf(false) }
+    var editing by remember { mutableStateOf(false) }
+    var editSubmitted by remember { mutableStateOf(false) }
     val originalRoute = remember { privacyRoute() }
     val masked = remember { PrivacyZoneMasker.mask(originalRoute, listOf(PrivacyZone(originalRoute.first(), 95.0))) }
+    LaunchedEffect(editing) { onRootPageChanged(!editing) }
+    LaunchedEffect(editSubmitted, busy, message) {
+        if (editSubmitted && !busy && message == "Profile updated.") {
+            editing = false
+            editSubmitted = false
+        }
+    }
+    if (editing) {
+        EditProfileScreen(
+            profile = profile,
+            busy = busy,
+            message = if (editSubmitted) message else null,
+            onBack = {
+                editing = false
+                editSubmitted = false
+            },
+            onSave = { update ->
+                editSubmitted = true
+                onUpdateProfile(update)
+            },
+        )
+        return
+    }
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         item {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 BrandMark(Modifier.size(52.dp))
                 Spacer(Modifier.size(14.dp))
-                Column {
+                Column(Modifier.weight(1f)) {
                     Text(profile.name, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black)
                     Text(profile.email, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
+                IconButton(onClick = {
+                    editSubmitted = false
+                    editing = true
+                }) { Icon(Icons.Rounded.Edit, contentDescription = "Edit profile") }
             }
         }
         item {
@@ -453,6 +496,121 @@ fun ProfileScreen(
         confirmButton = { TextButton(onClick = { onDeleteData(); confirmDelete = false }) { Text("Delete", color = MaterialTheme.colorScheme.error) } },
         dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("Cancel") } },
     )
+}
+
+@Composable
+private fun EditProfileScreen(
+    profile: UserProfile,
+    busy: Boolean,
+    message: String?,
+    onBack: () -> Unit,
+    onSave: (ProfileUpdate) -> Unit,
+) {
+    BackHandler(enabled = !busy, onBack = onBack)
+    var name by remember(profile.userId) { mutableStateOf(profile.name) }
+    var age by remember(profile.userId) { mutableStateOf(profile.age.toString()) }
+    var height by remember(profile.userId) { mutableStateOf(profile.heightCm.format(0)) }
+    var weight by remember(profile.userId) { mutableStateOf(profile.weightKg.format(1)) }
+    var calorieGoal by remember(profile.userId) { mutableStateOf(profile.dailyCalorieGoalKcal.toString()) }
+    var sex by remember(profile.userId) { mutableStateOf(profile.sex) }
+    var activity by remember(profile.userId) { mutableStateOf(profile.activityLevel) }
+    val update = ProfileUpdate(
+        name = name,
+        age = age.toIntOrNull() ?: 0,
+        sex = sex,
+        heightCm = height.toDoubleOrNull() ?: 0.0,
+        weightKg = weight.toDoubleOrNull() ?: 0.0,
+        activityLevel = activity,
+        dailyCalorieGoalKcal = calorieGoal.toIntOrNull() ?: 0,
+    )
+    val validationError = ProfileUpdateValidator.validate(update)
+    val maintenance = runCatching {
+        CalculateMaintenanceCaloriesUseCase()(update.age, update.sex, update.heightCm, update.weightKg, update.activityLevel).tdeeKcal
+    }.getOrNull()
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(16.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        item {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = onBack, enabled = !busy) { Icon(Icons.Rounded.ArrowBack, contentDescription = "Back to profile") }
+                Text("Edit profile", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black)
+            }
+        }
+        item {
+            SettingsCard("Account") {
+                OutlinedTextField(name, { name = it }, label = { Text("Name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(
+                    value = profile.email,
+                    onValueChange = {},
+                    label = { Text("Email") },
+                    supportingText = { Text("Email is managed by Firebase Authentication and cannot be changed here.") },
+                    readOnly = true,
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        }
+        item {
+            SettingsCard("Personal details") {
+                OutlinedTextField(age, { age = it }, label = { Text("Age") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(height, { height = it }, label = { Text("Height (cm)") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(weight, { weight = it }, label = { Text("Weight (kg)") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true, modifier = Modifier.fillMaxWidth())
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    BiologicalSex.entries.forEach { option ->
+                        FilterChip(
+                            selected = sex == option,
+                            onClick = { sex = option },
+                            label = { Text(option.name.lowercase().replaceFirstChar(Char::uppercase)) },
+                        )
+                    }
+                }
+            }
+        }
+        item {
+            SettingsCard("Goals") {
+                Text("Activity level", fontWeight = FontWeight.SemiBold)
+                ActivityLevel.entries.forEach { option ->
+                    FilterChip(
+                        selected = activity == option,
+                        onClick = { activity = option },
+                        label = { Text("${option.label} • ${option.factor}") },
+                    )
+                }
+                OutlinedTextField(
+                    calorieGoal,
+                    { calorieGoal = it },
+                    label = { Text("Daily calorie goal (kcal)") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Text(
+                    maintenance?.let { "Estimated maintenance: $it kcal/day" } ?: "Complete valid details to calculate maintenance calories.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        item {
+            Button(
+                onClick = { onSave(update) },
+                enabled = !busy && validationError == null,
+                modifier = Modifier.fillMaxWidth().height(52.dp),
+            ) {
+                if (busy) CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp) else Text("Save profile")
+            }
+            val feedback = message ?: validationError
+            feedback?.let {
+                Text(
+                    it,
+                    color = if (message == "Profile updated.") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(top = 8.dp),
+                )
+            }
+        }
+    }
 }
 
 @Composable

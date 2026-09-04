@@ -51,6 +51,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -96,6 +97,7 @@ fun FoodScreen(
     onAddSavedFood: (SavedFood, MealType) -> Unit,
     onDeleteNutritionEntry: (NutritionEntry) -> Unit,
     onDeleteSavedFood: (SavedFood) -> Unit,
+    onRootPageChanged: (Boolean) -> Unit,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -110,6 +112,7 @@ fun FoodScreen(
     var foodShareError by remember { mutableStateOf<String?>(null) }
     var selectedPhotoUri by remember { mutableStateOf<String?>(null) }
     var selectedPhotoFile by remember { mutableStateOf<File?>(null) }
+    LaunchedEffect(selectedSavedFood) { onRootPageChanged(selectedSavedFood == null) }
     val cameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { captured ->
         if (!captured) {
             selectedPhotoFile?.delete()
