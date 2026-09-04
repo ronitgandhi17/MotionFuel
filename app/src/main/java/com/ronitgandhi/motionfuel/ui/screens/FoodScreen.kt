@@ -1,8 +1,6 @@
 package com.ronitgandhi.motionfuel.ui.screens
 
-import android.content.ClipData
 import android.content.Intent
-import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -38,6 +36,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -55,6 +54,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -71,15 +71,20 @@ import com.ronitgandhi.motionfuel.domain.model.NutritionEntry
 import com.ronitgandhi.motionfuel.domain.model.NutritionTotals
 import com.ronitgandhi.motionfuel.domain.model.MealType
 import com.ronitgandhi.motionfuel.domain.model.SavedFood
+import com.ronitgandhi.motionfuel.share.FoodShareImage
 import com.ronitgandhi.motionfuel.ui.components.MacroProgress
 import com.ronitgandhi.motionfuel.ui.theme.FuelGreen
 import com.ronitgandhi.motionfuel.ui.theme.FuelOrange
 import com.ronitgandhi.motionfuel.ui.theme.FuelSky
 import coil.compose.AsyncImage
 import java.io.File
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @Composable
 fun FoodScreen(
+    darkTheme: Boolean,
     totals: NutritionTotals,
     entries: List<NutritionEntry>,
     savedFoods: List<SavedFood>,
@@ -93,6 +98,7 @@ fun FoodScreen(
     onDeleteSavedFood: (SavedFood) -> Unit,
 ) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     var query by remember { mutableStateOf("") }
     var manualDialog by remember { mutableStateOf(false) }
     var selectedMeal by remember { mutableStateOf(MealType.BREAKFAST) }
@@ -100,6 +106,8 @@ fun FoodScreen(
     var pendingAddFood by remember { mutableStateOf<SavedFood?>(null) }
     var pendingDeleteFood by remember { mutableStateOf<SavedFood?>(null) }
     var pendingDeleteEntry by remember { mutableStateOf<NutritionEntry?>(null) }
+    var sharingFood by remember { mutableStateOf(false) }
+    var foodShareError by remember { mutableStateOf<String?>(null) }
     var selectedPhotoUri by remember { mutableStateOf<String?>(null) }
     var selectedPhotoFile by remember { mutableStateOf<File?>(null) }
     val cameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { captured ->
@@ -126,7 +134,20 @@ fun FoodScreen(
                 selectedMeal = meal
                 onAddSavedFood(food, meal)
             },
-            onShare = { shareSavedFood(context, food) },
+            sharing = sharingFood,
+            shareError = foodShareError,
+            onShare = {
+                sharingFood = true
+                foodShareError = null
+                scope.launch {
+                    val result = runCatching {
+                        withContext(Dispatchers.IO) { FoodShareImage.createShareIntent(context, food, darkTheme) }
+                    }
+                    sharingFood = false
+                    result.onSuccess { context.startActivity(Intent.createChooser(it, "Share ${food.name}")) }
+                        .onFailure { foodShareError = it.localizedMessage ?: "The food card could not be created." }
+                }
+            },
         )
         return
     }
@@ -423,7 +444,14 @@ private fun AddSavedFoodToDayDialog(food: SavedFood, initialMeal: MealType, onDi
 }
 
 @Composable
-private fun SavedFoodDetailScreen(food: SavedFood, onBack: () -> Unit, onAdd: (MealType) -> Unit, onShare: () -> Unit) {
+private fun SavedFoodDetailScreen(
+    food: SavedFood,
+    onBack: () -> Unit,
+    onAdd: (MealType) -> Unit,
+    sharing: Boolean,
+    shareError: String?,
+    onShare: () -> Unit,
+) {
     var showMealSelector by remember(food.id) { mutableStateOf(false) }
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -466,11 +494,12 @@ private fun SavedFoodDetailScreen(food: SavedFood, onBack: () -> Unit, onAdd: (M
             }
         }
         item {
-            OutlinedButton(onClick = onShare, modifier = Modifier.fillMaxWidth().height(56.dp)) {
-                Icon(Icons.Rounded.Share, contentDescription = null)
+            OutlinedButton(onClick = onShare, enabled = !sharing, modifier = Modifier.fillMaxWidth().height(56.dp)) {
+                if (sharing) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp) else Icon(Icons.Rounded.Share, contentDescription = null)
                 Spacer(Modifier.size(8.dp))
-                Text("Share food")
+                Text(if (sharing) "Creating card…" else "Share food")
             }
+            shareError?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
         }
     }
     if (showMealSelector) {
@@ -514,21 +543,6 @@ private fun FoodNutrientRow(label: String, value: String) {
         Text(label, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Text(value, fontWeight = FontWeight.Bold)
     }
-}
-
-private fun shareSavedFood(context: android.content.Context, food: SavedFood) {
-    val summary = "${food.name} • ${food.caloriesKcal.toInt()} kcal • ${food.proteinG.toInt()} g protein • ${food.carbohydratesG.toInt()} g carbs • ${food.fatG.toInt()} g fat"
-    val photoUri = food.photoUri?.let(Uri::parse)
-    val shareIntent = Intent(Intent.ACTION_SEND).apply {
-        type = if (photoUri == null) "text/plain" else "image/jpeg"
-        putExtra(Intent.EXTRA_TEXT, summary)
-        photoUri?.let {
-            putExtra(Intent.EXTRA_STREAM, it)
-            clipData = ClipData.newRawUri(food.name, it)
-            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        }
-    }
-    context.startActivity(Intent.createChooser(shareIntent, "Share ${food.name}"))
 }
 
 @Composable

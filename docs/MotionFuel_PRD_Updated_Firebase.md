@@ -4,7 +4,7 @@
 **Primary stack:** Kotlin, Android Studio, Jetpack Compose, Material Design 3, Firebase Authentication, Cloud Firestore, Firebase Storage, Room, DataStore, Retrofit/OkHttp, Google Maps SDK for Android  
 **Target platform:** Android 10+ (API 29+) for the university build, with graceful feature degradation when optional sensors are unavailable  
 **Architecture:** Feature-oriented Clean Architecture + MVVM  
-**Document status:** Version 1.8 — meal-card visual continuity revision, September 2026
+**Document status:** Version 1.9 — saved-food social-card sharing revision, September 2026
 
 ---
 
@@ -1208,11 +1208,11 @@ Chart interactions:
 Tapping a My saved foods card opens a dedicated detail page containing the captured image, food name, calories, protein, carbohydrates and fat. The page provides:
 
 - an **Add to meal** action that asks the user to choose Breakfast, Lunch or Dinner before reusing the saved nutrition values;
-- a **Share food** action that opens Android's system share sheet;
-- the food photo plus a concise nutrition summary when a photo exists;
-- a text-only nutrition summary when the food has no photo.
+- a **Share food** action that creates a branded 1080 × 1350 PNG card and opens Android's system share sheet;
+- the saved food picture, food name, calories, carbohydrates, protein and fat on the generated card;
+- a branded image placeholder when the saved food has no accessible picture.
 
-The share intent grants temporary read access only to the selected image URI. The FileProvider remains non-exported and exposes only the dedicated app-private food-photo and activity-share directories.
+The image is rendered away from the UI thread and follows the active light/dark theme. The share intent grants temporary read access only to the generated card URI. The FileProvider remains non-exported and exposes only the dedicated app-private food-photo, food-share and activity-share directories. Generated food cards remain in the non-backed-up cache and expire after 24 hours.
 
 Saved-food list gestures provide quick actions with confirmation:
 
@@ -2619,6 +2619,7 @@ DataStore changes theme/units immediately without app restart.
 | FR-49 | Swiping a saved food right shall open an Add to today meal selector, while swiping left shall require confirmation before deleting the saved food. |
 | FR-50 | Within today's Breakfast, Lunch, Dinner and Snack cards, swiping a logged food left shall expose Delete; confirmation shall remove only that diary entry and recalculate the meal and daily nutrition totals without deleting its reusable saved-food record. |
 | FR-51 | A logged diary-food row shall visually inherit its containing meal card colour in light and dark themes; the destructive background shall be visible only while swiping left. |
+| FR-52 | Share food shall generate a 1080 × 1350 social-media card containing MotionFuel branding, the food picture, name, calories, carbohydrates, protein and fat, then open Android's system share sheet with temporary read permission. |
 
 ---
 
@@ -3976,6 +3977,7 @@ Avoid comments/followers/complex ranking until everything above works.
 - [ ] Swiping a saved food right opens Add to today with meal selection; swiping left asks for confirmation before deletion.
 - [ ] Swiping a food left within today's Breakfast, Lunch, Dinner or Snack card asks for confirmation and removes only that day's diary entry, with totals recalculated automatically.
 - [ ] Logged-food rows blend into their meal card in both themes and reveal the destructive colour only during a left swipe.
+- [ ] Share food creates a branded image card containing the food picture, name, calories, carbohydrates, protein and fat, and the card can be sent through Android's system share sheet.
 - [ ] Nutrition totals remain available offline after being saved.
 - [ ] The Calories and Weight cards each provide their own working Day, Week and Month selector and may display different selected periods.
 - [ ] Calorie bars show historical target references and weight bars never treat missing measurements as zero.
