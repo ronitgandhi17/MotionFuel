@@ -17,19 +17,20 @@ The Firebase configuration file contains project identifiers used by the client;
 
 MotionFuel sends a verification email after signup. Verification is mandatory: the app remains on **Verify Email**, and private Firestore reads remain blocked, until the user opens the email link and taps **I've verified my email**.
 
-## 3. Create Firestore
+## 3. Create Firestore and Storage
 
 1. Open **Build → Firestore Database**.
 2. Create the database in a region appropriate for the project.
-3. Deploy the repository's `firestore.rules` file with the Firebase CLI:
+3. Open **Build → Storage**, create the default bucket and keep it locked down.
+4. Deploy the repository's Firestore and Storage rules with the Firebase CLI:
 
 ```bash
 firebase login
 firebase use YOUR_PROJECT_ID
-firebase deploy --only firestore:rules
+firebase deploy --only firestore:rules,storage
 ```
 
-Do not leave Firestore in unrestricted test mode.
+Do not leave Firestore or Storage in unrestricted test mode. Profile pictures are stored only at `profile-images/{uid}/avatar`; the included rules allow the signed-in owner to access that path and reject non-images and files of 5 MB or more.
 
 ## 4. Configure Firebase App Check
 
@@ -49,10 +50,11 @@ The debug provider exists only in the debug dependency/source set. Release build
 3. Confirm Authentication contains the new user.
 4. Confirm the app stays on Verify Email before verification and cannot read the private profile.
 5. Open the verification link, return to the app and tap **I've verified my email**.
-6. Confirm Firestore contains `users/{uid}` with the completed profile.
-7. Sign out, sign in again and verify that the session/profile loads.
-8. Test **Forgot password** with the same email.
-9. Run `cd firebase-tests && npm ci --ignore-scripts && npm test` to exercise the deployed rule model locally.
+6. Confirm Firestore contains `users/{uid}` with the completed profile and optional `photoUrl`.
+7. If a picture was selected, confirm Storage contains `profile-images/{uid}/avatar` and that another account cannot read it through the SDK.
+8. Sign out, sign in again and verify that the session/profile loads.
+9. Test **Forgot password** with the same email.
+10. Run `cd firebase-tests && npm ci --ignore-scripts && npm test` to exercise both rule models locally.
 
 ## Configuration rules
 

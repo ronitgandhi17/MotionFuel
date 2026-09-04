@@ -42,6 +42,7 @@ import com.ronitgandhi.motionfuel.domain.algorithm.CalculateMaintenanceCaloriesU
 import com.ronitgandhi.motionfuel.domain.model.ActivityLevel
 import com.ronitgandhi.motionfuel.domain.model.BiologicalSex
 import com.ronitgandhi.motionfuel.ui.components.BrandMark
+import com.ronitgandhi.motionfuel.ui.components.ProfilePhotoPicker
 
 @Composable
 fun FirebaseAuthScreen(
@@ -61,6 +62,7 @@ fun FirebaseAuthScreen(
     var sex by remember { mutableStateOf(BiologicalSex.MALE) }
     var activity by remember { mutableStateOf(ActivityLevel.MODERATE) }
     var signUpStep by remember { mutableIntStateOf(0) }
+    var profilePhotoUri by remember { mutableStateOf<String?>(null) }
 
     Box(Modifier.fillMaxSize().padding(20.dp), contentAlignment = Alignment.Center) {
         Card(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
@@ -83,7 +85,10 @@ fun FirebaseAuthScreen(
                         Text("Create your account", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                         Text("Step ${signUpStep + 1} of 3", color = MaterialTheme.colorScheme.primary)
                         when (signUpStep) {
-                            0 -> AccountFields(name, email, password, confirmPassword, { name = it }, { email = it }, { password = it }, { confirmPassword = it })
+                            0 -> Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                ProfilePhotoPicker(profilePhotoUri, name, !state.busy) { profilePhotoUri = it }
+                                AccountFields(name, email, password, confirmPassword, { name = it }, { email = it }, { password = it }, { confirmPassword = it })
+                            }
                             1 -> ProfileFields(age, height, weight, sex, { age = it }, { height = it }, { weight = it }, { sex = it })
                             else -> ReviewFields(age, height, weight, sex, activity) { activity = it }
                         }
@@ -91,7 +96,7 @@ fun FirebaseAuthScreen(
                             TextButton(onClick = { if (signUpStep == 0) onModeChanged(AuthFormMode.SIGN_IN) else signUpStep-- }, modifier = Modifier.weight(1f)) { Text("Back") }
                             Button(
                                 onClick = {
-                                    if (signUpStep < 2) signUpStep++ else onSignUp(SignUpRequest(name, email, password, confirmPassword, age.toIntOrNull() ?: 0, sex, height.toDoubleOrNull() ?: 0.0, weight.toDoubleOrNull() ?: 0.0, activity))
+                                    if (signUpStep < 2) signUpStep++ else onSignUp(SignUpRequest(name, email, password, confirmPassword, age.toIntOrNull() ?: 0, sex, height.toDoubleOrNull() ?: 0.0, weight.toDoubleOrNull() ?: 0.0, activity, profilePhotoUri))
                                 },
                                 enabled = !state.busy,
                                 modifier = Modifier.weight(1f).height(50.dp),

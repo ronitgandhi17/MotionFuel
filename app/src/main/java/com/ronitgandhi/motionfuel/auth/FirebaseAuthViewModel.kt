@@ -1,6 +1,9 @@
 package com.ronitgandhi.motionfuel.auth
 
 import android.app.Application
+import android.graphics.Bitmap
+import android.graphics.ImageDecoder
+import android.net.Uri
 import android.util.Patterns
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -12,6 +15,8 @@ import com.google.firebase.auth.UserProfileChangeRequest
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.SetOptions
+import com.google.firebase.storage.FirebaseStorage
+import com.google.firebase.storage.StorageMetadata
 import com.ronitgandhi.motionfuel.domain.algorithm.CalculateMaintenanceCaloriesUseCase
 import com.ronitgandhi.motionfuel.domain.algorithm.ProfileUpdateValidator
 import com.ronitgandhi.motionfuel.domain.model.ActivityLevel
@@ -21,9 +26,14 @@ import com.ronitgandhi.motionfuel.domain.model.UserProfile
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
+import java.io.File
+import java.io.FileOutputStream
+import kotlin.math.max
 
 enum class AuthLifecycle { CONFIGURATION_REQUIRED, LOADING, AUTHENTICATION_ERROR, SIGNED_OUT, EMAIL_VERIFICATION_REQUIRED, PROFILE_INCOMPLETE, SIGNED_IN }
 enum class AuthFormMode { SIGN_IN, SIGN_UP, FORGOT_PASSWORD }
@@ -38,6 +48,7 @@ data class SignUpRequest(
     val heightCm: Double,
     val weightKg: Double,
     val activityLevel: ActivityLevel,
+    val profilePhotoUri: String? = null,
 )
 
 data class FirebaseAuthUiState(
@@ -56,6 +67,7 @@ class FirebaseAuthViewModel(application: Application) : AndroidViewModel(applica
     private val firebaseReady = FirebaseApp.getApps(application).isNotEmpty()
     private val auth: FirebaseAuth? = if (firebaseReady) FirebaseAuth.getInstance() else null
     private val firestore: FirebaseFirestore? = if (firebaseReady) FirebaseFirestore.getInstance() else null
+    private val storage: FirebaseStorage? = if (firebaseReady) FirebaseStorage.getInstance() else null
     private val authListener = AuthStateListener { firebaseAuth -> handleUser(firebaseAuth.currentUser) }
 
     init {
@@ -95,6 +107,12 @@ class FirebaseAuthViewModel(application: Application) : AndroidViewModel(applica
                 val user = requireNotNull(result.user)
                 user.updateProfile(UserProfileChangeRequest.Builder().setDisplayName(request.name.trim()).build()).await()
                 val calories = calculator(request.age, request.sex, request.heightCm, request.weightKg, request.activityLevel)
+                var photoUploadFailed = false
+                val photoUrl = request.profilePhotoUri?.let { uri ->
+                    runCatching { uploadProfilePhoto(user.uid, uri) }
+                        .onFailure { photoUploadFailed = true }
+                        .getOrNull()
+                }
                 val profile = UserProfile(
                     userId = user.uid,
                     name = request.name.trim(),
@@ -106,13 +124,18 @@ class FirebaseAuthViewModel(application: Application) : AndroidViewModel(applica
                     activityLevel = request.activityLevel,
                     maintenanceCaloriesKcal = calories.tdeeKcal,
                     dailyCalorieGoalKcal = calories.tdeeKcal,
+                    photoUrl = photoUrl,
                 )
                 requireNotNull(firestore).collection("users").document(user.uid).set(profile.toFirestore()).await()
                 val verificationSent = runCatching { user.sendEmailVerification().await() }.isSuccess
                 mutableState.value = FirebaseAuthUiState(
                     lifecycle = AuthLifecycle.EMAIL_VERIFICATION_REQUIRED,
                     verificationEmail = user.email,
-                    message = if (verificationSent) "Verification email sent." else "Use Resend email to request a new verification link.",
+                    message = when {
+                        photoUploadFailed -> "Account created. Verify your email; the profile picture could not be uploaded, so you can add it later from Edit profile."
+                        verificationSent -> "Verification email sent."
+                        else -> "Use Resend email to request a new verification link."
+                    },
                 )
             }.onFailure { failure ->
                 val accountExists = auth?.currentUser != null
@@ -202,6 +225,12 @@ class FirebaseAuthViewModel(application: Application) : AndroidViewModel(applica
         viewModelScope.launch {
             runCatching {
                 val calories = calculator(normalized.age, normalized.sex, normalized.heightCm, normalized.weightKg, normalized.activityLevel)
+                val photoChanged = normalized.profilePhotoUri != current.photoUrl
+                val photoUrl = when {
+                    !photoChanged -> current.photoUrl
+                    normalized.profilePhotoUri == null -> null
+                    else -> uploadProfilePhoto(current.userId, normalized.profilePhotoUri)
+                }
                 val updated = current.copy(
                     name = normalized.name,
                     age = normalized.age,
@@ -211,6 +240,7 @@ class FirebaseAuthViewModel(application: Application) : AndroidViewModel(applica
                     activityLevel = normalized.activityLevel,
                     maintenanceCaloriesKcal = calories.tdeeKcal,
                     dailyCalorieGoalKcal = normalized.dailyCalorieGoalKcal,
+                    photoUrl = photoUrl,
                 )
                 user.updateProfile(UserProfileChangeRequest.Builder().setDisplayName(normalized.name).build()).await()
                 val userDocument = requireNotNull(firestore).collection("users").document(current.userId)
@@ -227,6 +257,7 @@ class FirebaseAuthViewModel(application: Application) : AndroidViewModel(applica
                         "activityFactor" to updated.activityLevel.factor,
                         "maintenanceCaloriesKcal" to updated.maintenanceCaloriesKcal,
                         "dailyCalorieGoalKcal" to updated.dailyCalorieGoalKcal,
+                        "photoUrl" to updated.photoUrl,
                         "updatedAt" to FieldValue.serverTimestamp(),
                     ),
                     SetOptions.merge(),
@@ -238,6 +269,9 @@ class FirebaseAuthViewModel(application: Application) : AndroidViewModel(applica
                     )
                 }
                 batch.commit().await()
+                if (photoChanged && normalized.profilePhotoUri == null) {
+                    runCatching { requireNotNull(storage).reference.child("profile-images/${current.userId}/avatar").delete().await() }
+                }
                 updated
             }.onSuccess { updated ->
                 mutableState.update { it.copy(profile = updated, busy = false, message = "Profile updated.") }
@@ -247,6 +281,38 @@ class FirebaseAuthViewModel(application: Application) : AndroidViewModel(applica
 
     fun signOut() {
         auth?.signOut()
+    }
+
+    // Compresses a content URI to a bounded JPEG before uploading it to the user's fixed Storage path.
+    private suspend fun uploadProfilePhoto(userId: String, uriValue: String): String = withContext(Dispatchers.IO) {
+        val context = getApplication<Application>()
+        val sourceUri = Uri.parse(uriValue)
+        require(sourceUri.scheme == "content") { "Choose a picture from Camera or Gallery." }
+        val contentType = context.contentResolver.getType(sourceUri)
+        require(contentType?.startsWith("image/") == true) { "The selected file must be an image." }
+        val source = ImageDecoder.createSource(context.contentResolver, sourceUri)
+        val bitmap = ImageDecoder.decodeBitmap(source) { decoder, info, _ ->
+            decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
+            val largestSide = max(info.size.width, info.size.height)
+            if (largestSide > 1_024) {
+                val scale = 1_024f / largestSide
+                decoder.setTargetSize((info.size.width * scale).toInt(), (info.size.height * scale).toInt())
+            }
+        }
+        val directory = File(context.cacheDir, "profile_photos").apply { mkdirs() }
+        val compressed = File.createTempFile("profile_upload_", ".jpg", directory)
+        try {
+            FileOutputStream(compressed).use { output ->
+                require(bitmap.compress(Bitmap.CompressFormat.JPEG, 88, output)) { "The profile picture could not be prepared." }
+            }
+            val reference = requireNotNull(storage).reference.child("profile-images/$userId/avatar")
+            val metadata = StorageMetadata.Builder().setContentType("image/jpeg").build()
+            reference.putFile(Uri.fromFile(compressed), metadata).await()
+            reference.downloadUrl.await().toString()
+        } finally {
+            bitmap.recycle()
+            compressed.delete()
+        }
     }
 
     fun resendVerificationEmail() {
@@ -345,6 +411,7 @@ private fun UserProfile.toFirestore() = mapOf(
     "activityFactor" to activityLevel.factor,
     "maintenanceCaloriesKcal" to maintenanceCaloriesKcal,
     "dailyCalorieGoalKcal" to dailyCalorieGoalKcal,
+    "photoUrl" to photoUrl,
     "profileComplete" to profileComplete,
     "createdAt" to FieldValue.serverTimestamp(),
 )
@@ -363,6 +430,7 @@ private fun com.google.firebase.firestore.DocumentSnapshot.toProfile(uid: String
             activityLevel = ActivityLevel.valueOf(requireNotNull(getString("activityLevel"))),
             maintenanceCaloriesKcal = requireNotNull(getLong("maintenanceCaloriesKcal")).toInt(),
             dailyCalorieGoalKcal = requireNotNull(getLong("dailyCalorieGoalKcal")).toInt(),
+            photoUrl = getString("photoUrl"),
         )
     }.getOrNull()
 }

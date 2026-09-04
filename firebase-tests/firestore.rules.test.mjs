@@ -7,6 +7,7 @@ import {
   initializeTestEnvironment,
 } from "@firebase/rules-unit-testing";
 import { doc, getDoc, serverTimestamp, setDoc, updateDoc } from "firebase/firestore";
+import { getBytes, ref as storageRef, uploadBytes } from "firebase/storage";
 
 const projectId = "motionfuel-test";
 const ownerId = "owner-user";
@@ -47,10 +48,18 @@ before(async () => {
       port: 8080,
       rules: readFileSync(fileURLToPath(new URL("../firestore.rules", import.meta.url)), "utf8"),
     },
+    storage: {
+      host: "127.0.0.1",
+      port: 9199,
+      rules: readFileSync(fileURLToPath(new URL("../storage.rules", import.meta.url)), "utf8"),
+    },
   });
 });
 
-beforeEach(async () => environment.clearFirestore());
+beforeEach(async () => {
+  await environment.clearFirestore();
+  await environment.clearStorage();
+});
 after(async () => environment.cleanup());
 
 test("unauthenticated clients cannot read or create profiles", async () => {
@@ -95,8 +104,13 @@ test("verified owners can update valid profile fields only with a server timesta
     dailyCalorieGoalKcal: 2500,
     updatedAt: serverTimestamp(),
   }));
+  await assertSucceeds(updateDoc(reference, {
+    photoUrl: "https://firebasestorage.googleapis.com/example/avatar",
+    updatedAt: serverTimestamp(),
+  }));
   await assertFails(updateDoc(reference, { weightKg: 351, updatedAt: serverTimestamp() }));
   await assertFails(updateDoc(reference, { email: "attacker@example.com", updatedAt: serverTimestamp() }));
+  await assertFails(updateDoc(reference, { photoUrl: "x".repeat(2049), updatedAt: serverTimestamp() }));
 });
 
 test("weight entries require a verified owner and bounded schema", async () => {
@@ -106,4 +120,39 @@ test("weight entries require a verified owner and bounded schema", async () => {
   await assertSucceeds(setDoc(doc(verifiedDb, "users", ownerId, "weightEntries", "valid"), valid));
   await assertFails(setDoc(doc(unverifiedDb, "users", ownerId, "weightEntries", "unverified"), valid));
   await assertFails(setDoc(doc(verifiedDb, "users", ownerId, "weightEntries", "bad"), { ...valid, weightKg: 500 }));
+});
+
+test("profile images are private to their authenticated owner", async () => {
+  const ownerStorage = context(ownerId, ownerEmail, false).storage();
+  const attackerStorage = context("other-user", "other@example.com", true).storage();
+  const unauthenticatedStorage = environment.unauthenticatedContext().storage();
+  const avatar = storageRef(ownerStorage, `profile-images/${ownerId}/avatar`);
+  const imageBytes = new Uint8Array([0xff, 0xd8, 0xff, 0xd9]);
+
+  await assertSucceeds(uploadBytes(avatar, imageBytes, { contentType: "image/jpeg" }));
+  await assertSucceeds(getBytes(avatar));
+  await assertFails(getBytes(storageRef(attackerStorage, `profile-images/${ownerId}/avatar`)));
+  await assertFails(getBytes(storageRef(unauthenticatedStorage, `profile-images/${ownerId}/avatar`)));
+});
+
+test("profile image writes reject other users, non-images and unsupported paths", async () => {
+  const ownerStorage = context(ownerId, ownerEmail, true).storage();
+  const attackerStorage = context("other-user", "other@example.com", true).storage();
+  const imageBytes = new Uint8Array([0xff, 0xd8, 0xff, 0xd9]);
+
+  await assertFails(uploadBytes(
+    storageRef(attackerStorage, `profile-images/${ownerId}/avatar`),
+    imageBytes,
+    { contentType: "image/jpeg" },
+  ));
+  await assertFails(uploadBytes(
+    storageRef(ownerStorage, `profile-images/${ownerId}/avatar`),
+    new TextEncoder().encode("not an image"),
+    { contentType: "text/plain" },
+  ));
+  await assertFails(uploadBytes(
+    storageRef(ownerStorage, `profile-images/${ownerId}/extra-file`),
+    imageBytes,
+    { contentType: "image/jpeg" },
+  ));
 });

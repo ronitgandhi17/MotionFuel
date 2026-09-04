@@ -28,6 +28,7 @@ data class UserProfile(
     val activityLevel: ActivityLevel,
     val maintenanceCaloriesKcal: Int,
     val dailyCalorieGoalKcal: Int,
+    val photoUrl: String? = null,
     val profileComplete: Boolean = true,
 )
 
@@ -39,6 +40,7 @@ data class ProfileUpdate(
     val weightKg: Double,
     val activityLevel: ActivityLevel,
     val dailyCalorieGoalKcal: Int,
+    val profilePhotoUri: String? = null,
 )
 
 data class WeightEntry(

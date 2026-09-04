@@ -13,7 +13,7 @@ service cloud.firestore {
       return data.keys().hasOnly([
           'name', 'email', 'age', 'sex', 'heightCm', 'weightKg',
           'activityLevel', 'activityFactor', 'maintenanceCaloriesKcal',
-          'dailyCalorieGoalKcal', 'profileComplete', 'createdAt', 'updatedAt'
+          'dailyCalorieGoalKcal', 'photoUrl', 'profileComplete', 'createdAt', 'updatedAt'
         ])
         && data.name is string && data.name.size() >= 2 && data.name.size() <= 100
         && data.email is string && data.email == request.auth.token.email
@@ -25,6 +25,8 @@ service cloud.firestore {
         && data.activityFactor is number && data.activityFactor >= 1.2 && data.activityFactor <= 1.9
         && data.maintenanceCaloriesKcal is int && data.maintenanceCaloriesKcal >= 100 && data.maintenanceCaloriesKcal <= 10000
         && data.dailyCalorieGoalKcal is int && data.dailyCalorieGoalKcal >= 100 && data.dailyCalorieGoalKcal <= 10000
+        && (!('photoUrl' in data) || data.photoUrl == null
+          || (data.photoUrl is string && data.photoUrl.size() <= 2048))
         && data.profileComplete == true
         && data.createdAt is timestamp
         && (!('updatedAt' in data) || data.updatedAt is timestamp);

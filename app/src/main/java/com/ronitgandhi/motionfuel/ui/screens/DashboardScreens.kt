@@ -83,6 +83,8 @@ import com.ronitgandhi.motionfuel.domain.model.WeatherContext
 import com.ronitgandhi.motionfuel.domain.model.WeightEntry
 import com.ronitgandhi.motionfuel.domain.model.WorkoutSummary
 import com.ronitgandhi.motionfuel.ui.components.BrandMark
+import com.ronitgandhi.motionfuel.ui.components.ProfileAvatar
+import com.ronitgandhi.motionfuel.ui.components.ProfilePhotoPicker
 import com.ronitgandhi.motionfuel.ui.components.EmptyInsightCard
 import com.ronitgandhi.motionfuel.ui.components.InsightCard
 import com.ronitgandhi.motionfuel.ui.components.RouteCanvas
@@ -440,7 +442,7 @@ fun ProfileScreen(
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         item {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                BrandMark(Modifier.size(52.dp))
+                ProfileAvatar(profile.photoUrl, profile.name, Modifier.size(64.dp))
                 Spacer(Modifier.size(14.dp))
                 Column(Modifier.weight(1f)) {
                     Text(profile.name, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black)
@@ -514,6 +516,7 @@ private fun EditProfileScreen(
     var calorieGoal by remember(profile.userId) { mutableStateOf(profile.dailyCalorieGoalKcal.toString()) }
     var sex by remember(profile.userId) { mutableStateOf(profile.sex) }
     var activity by remember(profile.userId) { mutableStateOf(profile.activityLevel) }
+    var profilePhotoUri by remember(profile.userId) { mutableStateOf(profile.photoUrl) }
     val update = ProfileUpdate(
         name = name,
         age = age.toIntOrNull() ?: 0,
@@ -522,6 +525,7 @@ private fun EditProfileScreen(
         weightKg = weight.toDoubleOrNull() ?: 0.0,
         activityLevel = activity,
         dailyCalorieGoalKcal = calorieGoal.toIntOrNull() ?: 0,
+        profilePhotoUri = profilePhotoUri,
     )
     val validationError = ProfileUpdateValidator.validate(update)
     val maintenance = runCatching {
@@ -540,6 +544,7 @@ private fun EditProfileScreen(
         }
         item {
             SettingsCard("Account") {
+                ProfilePhotoPicker(profilePhotoUri, name, !busy) { profilePhotoUri = it }
                 OutlinedTextField(name, { name = it }, label = { Text("Name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 OutlinedTextField(
                     value = profile.email,

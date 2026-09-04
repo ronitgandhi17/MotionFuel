@@ -6,7 +6,7 @@ MotionFuel is a Kotlin/Jetpack Compose fitness and nutrition app that combines F
 
 - Firebase Authentication email/password login, registration, password reset, mandatory verification gate and persisted sessions.
 - Firebase App Check with debug attestation in debug builds and Play Integrity in release builds.
-- Multi-step signup for name, age, sex, height, weight and activity level.
+- Multi-step signup for name, optional profile picture, age, sex, height, weight and activity level.
 - Pure Kotlin Mifflin–St Jeor BMR and activity-factor TDEE calculation with unit tests.
 - Firestore user profiles stored at `users/{uid}` and protected by verified-owner, schema/range and server-timestamp rules.
 - MyFitnessPal-inspired light-first Today, Diary and Progress information hierarchy with original MotionFuel branding.
@@ -20,7 +20,8 @@ MotionFuel is a Kotlin/Jetpack Compose fitness and nutrition app that combines F
 - Saved-food swipe actions: right to choose a meal and add it to today, left to confirm deletion.
 - Diary editing: swipe a logged food left under Breakfast, Lunch, Dinner or Snack, then confirm to remove only that day's entry.
 - Diary food rows inherit their meal card colour in light and dark themes, with the delete colour shown only during a left swipe.
-- Firebase-backed profile editing for name, age, sex, height, weight, activity level and calorie goal, with email kept read-only.
+- Firebase-backed profile editing for picture, name, age, sex, height, weight, activity level and calorie goal, with email kept read-only.
+- Owner-only Firebase Storage avatars selected through Camera or Gallery, compressed to a bounded JPEG before upload and displayed throughout the profile UI.
 - Live weather temperature, humidity, wind and rain context on the Track Activity screen.
 - Room migration and offline weight-history persistence.
 - User-facing GPS quality indicator removed while internal point validation and drift rejection remain active.
@@ -52,7 +53,7 @@ Follow [docs/FIREBASE_SETUP.md](docs/FIREBASE_SETUP.md). The app intentionally s
 .\gradlew.bat assembleRelease
 ```
 
-Firestore rules tests run with the Emulator Suite:
+Firestore and Storage rules tests run with the Emulator Suite:
 
 ```bash
 cd firebase-tests
@@ -80,6 +81,7 @@ See [docs/SECURITY_TEST_REPORT.md](docs/SECURITY_TEST_REPORT.md) for the execute
 
 - Passwords and sessions are managed by Firebase Authentication.
 - Firestore rules restrict private data to the verified authenticated UID and validate supported document schemas.
+- Storage rules restrict each fixed avatar path to its authenticated owner and reject oversized or non-image uploads.
 - App Check attests debug/release clients but does not replace Authentication or Firestore rules.
 - Detailed route backup defaults to off.
 - Shared activity images are created only after a full-route warning is confirmed, include the complete recorded route and expire from cache.

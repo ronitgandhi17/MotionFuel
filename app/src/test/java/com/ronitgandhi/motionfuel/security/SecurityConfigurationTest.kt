@@ -30,6 +30,7 @@ class SecurityConfigurationTest {
         assertTrue(paths.contains("path=\"shared_foods/\""))
         assertTrue(paths.contains("<files-path"))
         assertTrue(paths.contains("path=\"food_photos/\""))
+        assertTrue(paths.contains("path=\"profile_photos/\""))
         assertFalse(paths.contains("path=\".\""))
         assertFalse(paths.contains("<root-path"))
         assertFalse(paths.contains("<external-path"))
@@ -97,6 +98,25 @@ class SecurityConfigurationTest {
         assertTrue(screen.contains("Email is managed by Firebase Authentication"))
         assertTrue(authSource.contains("preserving the Firebase-authenticated email address"))
         assertTrue(rules.contains("data.email == request.auth.token.email"))
+    }
+
+    @Test
+    fun profilePicturesUsePrivatePickersAndOwnerOnlyStorage() {
+        val manifest = appFile("AndroidManifest.xml")
+        val picker = appFile("java/com/ronitgandhi/motionfuel/ui/components/ProfilePhotoPicker.kt")
+        val authSource = appFile("java/com/ronitgandhi/motionfuel/auth/FirebaseAuthViewModel.kt")
+        val build = File("build.gradle.kts").readText()
+        val rules = File("../storage.rules").readText()
+        assertTrue(picker.contains("ActivityResultContracts.TakePicture()"))
+        assertTrue(picker.contains("ActivityResultContracts.PickVisualMedia()"))
+        assertTrue(authSource.contains("profile-images/${'$'}userId/avatar"))
+        assertTrue(authSource.contains("Bitmap.CompressFormat.JPEG"))
+        assertTrue(build.contains("com.google.firebase:firebase-storage"))
+        assertTrue(rules.contains("request.auth.uid == uid"))
+        assertTrue(rules.contains("request.resource.size < 5 * 1024 * 1024"))
+        assertTrue(rules.contains("request.resource.contentType.matches('image/.*')"))
+        assertFalse(manifest.contains("android.permission.CAMERA"))
+        assertFalse(manifest.contains("android.permission.READ_MEDIA_IMAGES"))
     }
 
     @Test
