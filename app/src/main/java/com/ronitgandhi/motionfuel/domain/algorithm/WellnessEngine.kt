@@ -42,7 +42,10 @@ object WellnessEngine {
         }
         val limit = (baselineKcal * 0.15).roundToInt()
         adjustment = adjustment.coerceIn(-limit, limit)
-        val hydration = 2_300 + (exerciseCaloriesKcal * 0.7).roundToInt() + if (hot) 400 else 0 + if (humid) 200 else 0
+        val hydration = 2_300 +
+            (exerciseCaloriesKcal * 0.7).roundToInt() +
+            (if (hot) 400 else 0) +
+            (if (humid) 200 else 0)
         return AdaptiveFuelTarget(
             baselineKcal = baselineKcal,
             recommendedKcal = (baselineKcal + adjustment).coerceAtLeast(1_200),

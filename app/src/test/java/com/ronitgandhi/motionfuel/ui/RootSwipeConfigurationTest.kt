@@ -14,6 +14,6 @@ class RootSwipeConfigurationTest {
         assertTrue(root.contains("MainTab.FOOD -> foodIsRootPage"))
         assertTrue(root.contains("MainTab.PROFILE -> profileIsRootPage"))
         assertTrue(food.contains("onRootPageChanged(selectedSavedFood == null)"))
-        assertTrue(profile.contains("onRootPageChanged(!editing)"))
+        assertTrue(profile.contains("onRootPageChanged(!editing && !showingTools)"))
     }
 }
