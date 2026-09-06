@@ -1,6 +1,3 @@
-Warning: truncated output (original token count: 41181)
-Total output lines: 4085
-
 # MotionFuel — Product Requirements Document (PRD)
 
 **Project type:** Advanced Android mobile systems university project  
@@ -2013,7 +2010,247 @@ UserProfile
 
 `maintenanceCaloriesKcal` is recalculated from the profile inputs. `calorieTargetKcal` is separately editable so a calculated maintenance-calorie estimate is never confused with the user's chosen goal.
 
-The Profile root screen provides an **Edit profile** action. The nested editor permits changes to profile picture, display name, age, biological sex used by the equation, height, current weight, activity level and daily calorie target. Saving validates the same numeric boundaries as Firestore, recalculates maintenance calories, updates the Firebase Authentication display name and merges the allowed fields into `users/{uid}`. Email is shown read-only because it is the verified Firebase Authentication identity; it is excluded from the update payload and Firestore continues to require the stored email to equal the authentica…1181 tokens truncated…, numeric ranges, timestamps, string lengths and immutable ownership where appropriate.
+The Profile root screen provides an **Edit profile** action. The nested editor permits changes to profile picture, display name, age, biological sex used by the equation, height, current weight, activity level and daily calorie target. Saving validates the same numeric boundaries as Firestore, recalculates maintenance calories, updates the Firebase Authentication display name and merges the allowed fields into `users/{uid}`. Email is shown read-only because it is the verified Firebase Authentication identity; it is excluded from the update payload and Firestore continues to require the stored email to equal the authenticated token email.
+
+### 26.2 Workout
+
+```text
+Workout
+- id: String
+- userId: String
+- type: WALK | RUN
+- startTime: Instant
+- endTime: Instant?
+- durationSeconds: Long
+- movingTimeSeconds: Long
+- distanceMeters: Double
+- targetDistanceMeters: Double?
+- predictedFinishDurationSeconds: Long?
+- steps: Long?
+- averagePaceSecPerKm: Double?
+- averageSpeedMps: Double?
+- elevationGainMeters: Double?
+- caloriesEstimate: Double?
+- weatherSnapshot: WeatherContext?
+- routePrivacyMode: RoutePrivacyMode
+- syncState: SyncState
+```
+
+### 26.3 LocationPoint
+
+```text
+LocationPoint
+- workoutId: String
+- sequence: Int
+- latitude: Double
+- longitude: Double
+- filteredLatitude: Double
+- filteredLongitude: Double
+- altitudeMeters: Double?
+- accuracyMeters: Float
+- speedMps: Float?
+- bearingDegrees: Float?
+- timestamp: Instant
+- quality: LocationQuality
+- accepted: Boolean
+- rejectionReason: String?       // debug only
+```
+
+### 26.4 ActivityClassification
+
+```text
+ActivityClassification
+- type: STATIONARY | WALKING | RUNNING | UNKNOWN
+- confidence: Float
+- evidence: Set<ActivityEvidence>
+- timestamp: Instant
+```
+
+### 26.5 FoodItem
+
+```text
+FoodItem
+- providerId: String
+- name: String
+- brand: String?
+- servingLabel: String
+- servingAmount: Double?
+- caloriesKcal: Double
+- proteinG: Double?
+- carbohydratesG: Double?
+- fatG: Double?
+- fibreG: Double?
+- sodiumMg: Double?
+- source: FoodSource
+```
+
+### 26.6 NutritionEntry
+
+```text
+NutritionEntry
+- id: String
+- userId: String
+- foodSnapshot: FoodSnapshot
+- quantityMultiplier: Double
+- mealType: BREAKFAST | LUNCH | DINNER | SNACK
+- consumedAt: Instant
+- sourceType: PROVIDER | CUSTOM_MEAL | RECIPE
+- customMealId: String?
+- recipeId: String?
+- notes: String?
+- syncState: SyncState
+```
+
+### 26.7 CustomMeal
+
+```text
+CustomMeal
+- id: String
+- userId: String
+- name: String
+- servingLabel: String?
+- caloriesKcal: Double
+- proteinG: Double?
+- carbohydratesG: Double?
+- fatG: Double?
+- localImageUri: String?
+- notes: String?
+- createdAt: Instant
+- updatedAt: Instant
+```
+
+### 26.8 DailySummary
+
+```text
+DailySummary
+- date: LocalDate
+- calorieTargetSnapshotKcal: Int
+- caloriesConsumedKcal: Double
+- breakfastCaloriesKcal: Double
+- lunchCaloriesKcal: Double
+- dinnerCaloriesKcal: Double
+- snackCaloriesKcal: Double
+- proteinG: Double
+- carbohydratesG: Double
+- fatG: Double
+- steps: Long
+- activeMinutes: Int
+- workoutCaloriesEstimate: Double
+- latestWeightKg: Double?
+```
+
+### 26.9 WeightEntry
+
+```text
+WeightEntry
+- id: String
+- userId: String
+- weightKg: Double
+- measuredAt: Instant
+- note: String?
+- syncState: SyncState
+```
+
+### 26.10 MaintenanceCalorieSnapshot
+
+```text
+MaintenanceCalorieSnapshot
+- id: String
+- userId: String
+- calculatedAt: Instant
+- ageYears: Int
+- sexForEquation: MALE | FEMALE
+- heightCm: Double
+- weightKg: Double
+- activityLevel: ActivityLevel
+- activityFactor: Double
+- bmrKcal: Double
+- maintenanceCaloriesKcal: Int
+- trigger: SIGN_UP | WEIGHT_UPDATE | PROFILE_UPDATE | ACTIVITY_LEVEL_UPDATE
+```
+
+### 26.11 WeatherContext
+
+```text
+WeatherContext
+- timestamp: Instant
+- temperatureC: Double
+- humidityPercent: Double
+- windSpeedMps: Double
+- precipitationState: String
+- uvIndex: Double?
+- sourceAgeMinutes: Int
+```
+
+### 26.12 SocialRecipe — Phase 2
+
+```text
+SocialRecipe
+- id: String
+- authorUserId: String
+- authorDisplayName: String
+- title: String
+- description: String?
+- ingredients: List<RecipeIngredient>
+- servings: Int
+- caloriesPerServing: Double
+- proteinPerServingG: Double?
+- carbohydratesPerServingG: Double?
+- fatPerServingG: Double?
+- imageUrl: String?
+- createdAt: Instant
+- likeCount: Int               // optional; omit if scope is tight
+```
+
+### 26.13 Insight
+
+See Section 11.
+
+---
+
+## 27. Firebase Cloud Data Model & Authorisation
+
+### 27.1 Firestore structure
+
+```text
+users/{uid}
+users/{uid}/workouts/{workoutId}
+users/{uid}/nutritionEntries/{entryId}
+users/{uid}/dailySummaries/{yyyy-MM-dd}
+users/{uid}/weightEntries/{weightEntryId}
+users/{uid}/maintenanceSnapshots/{snapshotId}
+users/{uid}/goals/{goalId}
+
+publicRecipes/{recipeId}                   // Phase 2
+```
+
+Detailed route backup can use chunked route documents only when the user enables route backup.
+
+### 27.2 Firebase UID ownership
+
+The client never chooses an arbitrary owner ID. After authentication:
+
+```text
+uid = FirebaseAuth.currentUser.uid
+```
+
+All user-private document paths use this UID.
+
+### 27.3 Firestore Security Rules concept
+
+```text
+match /users/{userId} {
+  allow read, write: if request.auth != null
+                     && request.auth.uid == userId;
+
+  match /{document=**} {
+    allow read, write: if request.auth != null
+                       && request.auth.uid == userId;
+  }
+}
+```
+
+Production rules should also validate allowed fields, numeric ranges, timestamps, string lengths and immutable ownership where appropriate.
 
 ### 27.4 User profile document
 
