@@ -9,7 +9,7 @@ class AdvancedFeaturesConfigurationTest {
     private fun appFile(path: String) = File("src/main/$path").readText()
 
     @Test
-    fun allTwelveFeatureEntryPointsArePresent() {
+    fun advancedFeatureEntryPointsArePresent() {
         val vm = appFile("java/com/ronitgandhi/motionfuel/MotionFuelViewModel.kt")
         val dashboard = appFile("java/com/ronitgandhi/motionfuel/ui/screens/DashboardScreens.kt")
         val advanced = appFile("java/com/ronitgandhi/motionfuel/ui/screens/AdvancedFeatureCards.kt")
@@ -24,7 +24,6 @@ class AdvancedFeaturesConfigurationTest {
         assertTrue(food.contains("Tomorrow's meal plan"))
         assertTrue(advanced.contains("Achievements:"))
         assertTrue(advanced.contains("Home-screen widget"))
-        assertTrue(advanced.contains("Wear OS sync"))
         assertTrue(advanced.contains("Export my data"))
         assertTrue(advanced.contains("Weekly insight report"))
         assertTrue(dashboard.contains("ConnectedToolsScreen"))
@@ -35,7 +34,18 @@ class AdvancedFeaturesConfigurationTest {
         val build = File("build.gradle.kts").readText()
         assertTrue(build.contains("androidx.health.connect:connect-client"))
         assertTrue(build.contains("play-services-code-scanner"))
-        assertTrue(build.contains("play-services-wearable"))
+        assertFalse(build.contains("play-services-wearable"))
+    }
+
+    @Test
+    fun wearOsCompanionIsNotIncluded() {
+        val vm = appFile("java/com/ronitgandhi/motionfuel/MotionFuelViewModel.kt")
+        val advanced = appFile("java/com/ronitgandhi/motionfuel/ui/screens/AdvancedFeatureCards.kt")
+        val settings = appFile("java/com/ronitgandhi/motionfuel/data/settings/SettingsRepository.kt")
+        assertFalse(vm.contains("WearableBridge"))
+        assertFalse(vm.contains("sendWearableCommand"))
+        assertFalse(advanced.contains("Wear OS sync"))
+        assertFalse(settings.contains("wearable_sync_enabled"))
     }
 
     @Test

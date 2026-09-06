@@ -1,5 +1,7 @@
 # PRD implementation status
 
+Direct Wear OS pairing and command messaging are intentionally not part of the application. Optional external health records are accessed through Health Connect only.
+
 | Area | Status | Evidence |
 | --- | --- | --- |
 | Adaptive daily fuel | Implemented | Guardrailed pure-Kotlin engine combines exercise energy, steps, weather and context with visible reasons |
@@ -11,7 +13,6 @@
 | Meal planning | Implemented locally | Tomorrow plan table, saved-food planning, removal and copy-to-today |
 | Goals/achievements | Implemented | Editable active-day, step and water targets with streaks and milestone labels |
 | Android widget | Implemented | Private-state calories/steps/water RemoteViews widget |
-| Wear OS bridge | Implemented; paired watch required | Opt-in node discovery and start/pause/resume/finish message mirroring |
 | Export/account deletion | Implemented | Complete local JSON export; confirmed deletion with recent-login guard and owned-cloud cleanup |
 | Weekly report | Implemented | Seven-day consistency/workout/nutrition/weight summary and Android text sharing |
 | Firebase account flow | Implemented; project configuration required | Login, signup, password reset, mandatory verification gate, resend/refresh and session listener |

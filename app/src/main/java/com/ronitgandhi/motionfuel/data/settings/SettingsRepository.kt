@@ -29,7 +29,6 @@ class SettingsRepository(private val context: Context) {
         val SleepHours = doublePreferencesKey("manual_sleep_hours")
         val RestingHeartRate = intPreferencesKey("manual_resting_heart_rate")
         val HealthConnect = booleanPreferencesKey("health_connect_enabled")
-        val WearableSync = booleanPreferencesKey("wearable_sync_enabled")
     }
 
     val settings: Flow<UserSettings> = context.motionFuelDataStore.data.map { preferences ->
@@ -47,7 +46,6 @@ class SettingsRepository(private val context: Context) {
             manualSleepHours = preferences[Keys.SleepHours] ?: 7.5,
             manualRestingHeartRateBpm = preferences[Keys.RestingHeartRate] ?: 68,
             healthConnectEnabled = preferences[Keys.HealthConnect] ?: false,
-            wearableSyncEnabled = preferences[Keys.WearableSync] ?: false,
         )
     }
 
@@ -65,5 +63,4 @@ class SettingsRepository(private val context: Context) {
         it[Keys.RestingHeartRate] = restingHeartRate.coerceIn(30, 220)
     }
     suspend fun setHealthConnectEnabled(value: Boolean) = context.motionFuelDataStore.edit { it[Keys.HealthConnect] = value }
-    suspend fun setWearableSyncEnabled(value: Boolean) = context.motionFuelDataStore.edit { it[Keys.WearableSync] = value }
 }

@@ -97,7 +97,6 @@ dependencies {
     implementation("androidx.datastore:datastore-preferences:1.1.7")
     implementation("androidx.health.connect:connect-client:1.1.0")
     implementation("com.google.android.gms:play-services-code-scanner:16.1.0")
-    implementation("com.google.android.gms:play-services-wearable:19.0.0")
 
     // Keeps Firebase Authentication and Firestore SDK versions mutually compatible.
     implementation(platform("com.google.firebase:firebase-bom:34.18.0"))
