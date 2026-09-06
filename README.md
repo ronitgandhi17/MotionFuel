@@ -4,6 +4,18 @@ MotionFuel is a Kotlin/Jetpack Compose fitness and nutrition app that combines F
 
 ## Implemented in this revision
 
+- Adaptive daily fuel and hydration targets with visible evidence and bounded automatic calorie adjustments.
+- Optional, read-only Health Connect imports for steps, active energy, weight, sleep and heart rate, with manual recovery fallbacks.
+- Permissionless Google Play Services barcode scanning with Open Food Facts lookup.
+- Whole-kilometre workout splits, personal records and workout streak calculation.
+- Offline-first hydration logging and weather/activity-aware water targets.
+- Recovery readiness score with factors and non-medical training guidance.
+- Tomorrow meal planning from saved foods, individual removal and copy-to-today.
+- Editable workout/step/water goals with progress, streaks and achievements.
+- Android home-screen widget for remaining calories, steps and water.
+- Opt-in Wear OS pairing status and workout lifecycle messaging.
+- Complete local JSON data export and confirmed recent-login account deletion.
+- Shareable seven-day insight report with consistency, workout, nutrition and weight trends.
 - Firebase Authentication email/password login, registration, password reset, mandatory verification gate and persisted sessions.
 - Firebase App Check with debug attestation in debug builds and Play Integrity in release builds.
 - Multi-step signup for name, optional profile picture, age, sex, height, weight and activity level.
@@ -21,7 +33,7 @@ MotionFuel is a Kotlin/Jetpack Compose fitness and nutrition app that combines F
 - Diary editing: swipe a logged food left under Breakfast, Lunch, Dinner or Snack, then confirm to remove only that day's entry.
 - Diary food rows inherit their meal card colour in light and dark themes, with the delete colour shown only during a left swipe.
 - Firebase-backed profile editing for picture, name, age, sex, height, weight, activity level and calorie goal, with email kept read-only.
-- Owner-only Firebase Storage avatars selected through Camera or Gallery, compressed to a bounded JPEG before upload and displayed throughout the profile UI.
+- Owner-only Firebase Storage avatars selected through Camera or Gallery, compressed to a bounded JPEG before upload, mirrored to the Firebase Authentication profile and displayed throughout the profile UI.
 - Live weather temperature, humidity, wind and rain context on the Track Activity screen.
 - Room migration and offline weight-history persistence.
 - User-facing GPS quality indicator removed while internal point validation and drift rejection remain active.
@@ -75,7 +87,9 @@ See [docs/SECURITY_TEST_REPORT.md](docs/SECURITY_TEST_REPORT.md) for the execute
 4. Run the debug-only deterministic workout trace and show the filtered route and sensor-derived metrics.
 5. Tap a saved Activity to open its full summary, then use **Share activity image** to open Android's share sheet.
 6. Add a weight in Progress and switch between Day, Week and Month calorie/weight bar graphs.
-7. Reopen the app offline to demonstrate Room-backed history.
+7. Open Connected health & tools to demonstrate Health Connect, Wear OS, export and widget support.
+8. Scan a food barcode, plan a saved food for tomorrow, log water and review Recovery, Goals and the Weekly report.
+9. Reopen the app offline to demonstrate Room-backed history.
 
 ## Privacy
 

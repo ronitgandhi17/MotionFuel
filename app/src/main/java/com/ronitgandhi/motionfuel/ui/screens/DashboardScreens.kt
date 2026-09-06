@@ -82,6 +82,13 @@ import com.ronitgandhi.motionfuel.domain.model.UserSettings
 import com.ronitgandhi.motionfuel.domain.model.WeatherContext
 import com.ronitgandhi.motionfuel.domain.model.WeightEntry
 import com.ronitgandhi.motionfuel.domain.model.WorkoutSummary
+import com.ronitgandhi.motionfuel.domain.model.AdaptiveFuelTarget
+import com.ronitgandhi.motionfuel.domain.model.ConnectedHealthSnapshot
+import com.ronitgandhi.motionfuel.domain.model.GoalProgress
+import com.ronitgandhi.motionfuel.domain.model.PersonalRecords
+import com.ronitgandhi.motionfuel.domain.model.RecoveryScore
+import com.ronitgandhi.motionfuel.domain.model.WeeklyReport
+import com.ronitgandhi.motionfuel.domain.model.WellnessGoals
 import com.ronitgandhi.motionfuel.ui.components.BrandMark
 import com.ronitgandhi.motionfuel.ui.components.ProfileAvatar
 import com.ronitgandhi.motionfuel.ui.components.ProfilePhotoPicker
@@ -112,6 +119,10 @@ fun TodayScreen(
     weatherStatus: String,
     insights: List<Insight>,
     settings: UserSettings,
+    adaptiveTarget: AdaptiveFuelTarget,
+    goalProgress: GoalProgress,
+    recovery: RecoveryScore,
+    onAddWater: (Int) -> Unit,
     onStartWorkout: () -> Unit,
     onRefreshWeather: () -> Unit,
     onOpenActivity: () -> Unit,
@@ -129,6 +140,15 @@ fun TodayScreen(
                     Text(SimpleDateFormat("EEEE, d MMMM", Locale.getDefault()).format(Date()), color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 IconButton(onClick = onRefreshWeather) { Icon(Icons.Rounded.Cloud, "Refresh weather") }
+            }
+        }
+        item { AdaptiveFuelCard(adaptiveTarget, goalProgress.waterTodayMl, onAddWater) }
+        item {
+            Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp)) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("Recovery: ${recovery.label}", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text("${recovery.score}/100 • ${recovery.recommendation}", style = MaterialTheme.typography.bodySmall)
+                }
             }
         }
         item {
@@ -216,12 +236,14 @@ fun ActivityScreen(
     settings: UserSettings,
     onStartWorkout: () -> Unit,
     onActivitySelected: (WorkoutSummary) -> Unit,
+    personalRecords: PersonalRecords,
 ) {
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
             Text("Activity", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Black)
             Text("Your locally saved walks and runs", color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
+        item { PersonalRecordsCard(personalRecords, settings.units == UnitSystem.IMPERIAL) }
         item {
             FilledTonalButton(onClick = onStartWorkout, modifier = Modifier.fillMaxWidth().height(52.dp)) {
                 Icon(Icons.Rounded.DirectionsRun, null)
@@ -270,6 +292,12 @@ fun ProgressScreen(
     profile: UserProfile,
     insights: List<Insight>,
     onAddWeight: (Double) -> Unit,
+    recovery: RecoveryScore,
+    goalProgress: GoalProgress,
+    weeklyReport: WeeklyReport,
+    settings: UserSettings,
+    onUpdateGoals: (WellnessGoals) -> Unit,
+    onUpdateRecovery: (Double, Int) -> Unit,
 ) {
     var calorieRange by remember { mutableStateOf(ProgressRange.WEEK) }
     var weightRange by remember { mutableStateOf(ProgressRange.WEEK) }
@@ -306,6 +334,7 @@ fun ProgressScreen(
             }
         }
         item { insights.firstOrNull()?.let { InsightCard(it) } ?: EmptyInsightCard() }
+        item { ProgressWellnessCards(recovery, goalProgress, weeklyReport, settings, onUpdateGoals, onUpdateRecovery) }
         item {
             Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f))) {
                 Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -410,13 +439,22 @@ fun ProfileScreen(
     onUpdateProfile: (ProfileUpdate) -> Unit,
     onRootPageChanged: (Boolean) -> Unit,
     onSignOut: () -> Unit,
+    connectedHealth: ConnectedHealthSnapshot,
+    wearableStatus: String,
+    onRequestHealthPermissions: () -> Unit,
+    onRefreshHealth: () -> Unit,
+    onWearableChanged: (Boolean) -> Unit,
+    onExport: () -> Unit,
+    onShareReport: () -> Unit,
+    onDeleteAccount: () -> Unit,
 ) {
     var confirmDelete by remember { mutableStateOf(false) }
     var editing by remember { mutableStateOf(false) }
+    var showingTools by remember { mutableStateOf(false) }
     var editSubmitted by remember { mutableStateOf(false) }
     val originalRoute = remember { privacyRoute() }
     val masked = remember { PrivacyZoneMasker.mask(originalRoute, listOf(PrivacyZone(originalRoute.first(), 95.0))) }
-    LaunchedEffect(editing) { onRootPageChanged(!editing) }
+    LaunchedEffect(editing, showingTools) { onRootPageChanged(!editing && !showingTools) }
     LaunchedEffect(editSubmitted, busy, message) {
         if (editSubmitted && !busy && message == "Profile updated.") {
             editing = false
@@ -436,6 +474,21 @@ fun ProfileScreen(
                 editSubmitted = true
                 onUpdateProfile(update)
             },
+        )
+        return
+    }
+    if (showingTools) {
+        ConnectedToolsScreen(
+            health = connectedHealth,
+            settings = settings,
+            wearableStatus = wearableStatus,
+            onBack = { showingTools = false },
+            onRequestHealthPermissions = onRequestHealthPermissions,
+            onRefreshHealth = onRefreshHealth,
+            onWearableChanged = onWearableChanged,
+            onExport = onExport,
+            onShareReport = onShareReport,
+            onDeleteAccount = onDeleteAccount,
         )
         return
     }
@@ -474,6 +527,11 @@ fun ProfileScreen(
                     OutlinedButton({ onUnitsChanged(UnitSystem.METRIC) }, enabled = settings.units != UnitSystem.METRIC, modifier = Modifier.weight(1f)) { Text("Metric") }
                     OutlinedButton({ onUnitsChanged(UnitSystem.IMPERIAL) }, enabled = settings.units != UnitSystem.IMPERIAL, modifier = Modifier.weight(1f)) { Text("Imperial") }
                 }
+            }
+        }
+        item {
+            Button(onClick = { showingTools = true }, modifier = Modifier.fillMaxWidth().height(52.dp)) {
+                Text("Connected health & tools")
             }
         }
         item {

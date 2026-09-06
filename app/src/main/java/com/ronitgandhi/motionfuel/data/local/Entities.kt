@@ -60,3 +60,23 @@ data class SavedFoodEntity(
     val photoUri: String?,
     val createdAtMillis: Long,
 )
+
+@Entity(tableName = "hydration_entries")
+data class HydrationEntryEntity(
+    @PrimaryKey val id: String,
+    val amountMl: Int,
+    val consumedAtMillis: Long,
+)
+
+@Entity(tableName = "meal_plan_entries")
+data class MealPlanEntryEntity(
+    @PrimaryKey val id: String,
+    val scheduledDayStartMillis: Long,
+    val mealType: String,
+    val savedFoodId: String,
+    val foodName: String,
+    val caloriesKcal: Double,
+    val proteinG: Double,
+    val carbohydratesG: Double,
+    val fatG: Double,
+)

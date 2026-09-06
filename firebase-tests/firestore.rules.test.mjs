@@ -6,8 +6,8 @@ import {
   assertSucceeds,
   initializeTestEnvironment,
 } from "@firebase/rules-unit-testing";
-import { doc, getDoc, serverTimestamp, setDoc, updateDoc } from "firebase/firestore";
-import { getBytes, ref as storageRef, uploadBytes } from "firebase/storage";
+import { deleteDoc, doc, getDoc, serverTimestamp, setDoc, updateDoc } from "firebase/firestore";
+import { deleteObject, getBytes, ref as storageRef, uploadBytes } from "firebase/storage";
 
 const projectId = "motionfuel-test";
 const ownerId = "owner-user";
@@ -155,4 +155,21 @@ test("profile image writes reject other users, non-images and unsupported paths"
     imageBytes,
     { contentType: "image/jpeg" },
   ));
+});
+
+test("only a verified owner can delete the profile", async () => {
+  await assertSucceeds(createOwnerProfile());
+  const ownerDb = context(ownerId, ownerEmail, true).firestore();
+  const attackerDb = context("other-user", "other@example.com", true).firestore();
+  await assertFails(deleteDoc(doc(attackerDb, "users", ownerId)));
+  await assertSucceeds(deleteDoc(doc(ownerDb, "users", ownerId)));
+});
+
+test("only an avatar owner can delete the stored image", async () => {
+  const ownerStorage = context(ownerId, ownerEmail, true).storage();
+  const attackerStorage = context("other-user", "other@example.com", true).storage();
+  const avatar = storageRef(ownerStorage, `profile-images/${ownerId}/avatar`);
+  await assertSucceeds(uploadBytes(avatar, new Uint8Array([0xff, 0xd8, 0xff, 0xd9]), { contentType: "image/jpeg" }));
+  await assertFails(deleteObject(storageRef(attackerStorage, `profile-images/${ownerId}/avatar`)));
+  await assertSucceeds(deleteObject(avatar));
 });

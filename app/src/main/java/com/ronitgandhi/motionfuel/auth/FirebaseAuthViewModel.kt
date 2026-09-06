@@ -105,7 +105,6 @@ class FirebaseAuthViewModel(application: Application) : AndroidViewModel(applica
             runCatching {
                 val result = requireNotNull(auth).createUserWithEmailAndPassword(request.email.trim(), request.password).await()
                 val user = requireNotNull(result.user)
-                user.updateProfile(UserProfileChangeRequest.Builder().setDisplayName(request.name.trim()).build()).await()
                 val calories = calculator(request.age, request.sex, request.heightCm, request.weightKg, request.activityLevel)
                 var photoUploadFailed = false
                 val photoUrl = request.profilePhotoUri?.let { uri ->
@@ -126,6 +125,12 @@ class FirebaseAuthViewModel(application: Application) : AndroidViewModel(applica
                     dailyCalorieGoalKcal = calories.tdeeKcal,
                     photoUrl = photoUrl,
                 )
+                user.updateProfile(
+                    UserProfileChangeRequest.Builder()
+                        .setDisplayName(request.name.trim())
+                        .setPhotoUri(photoUrl?.let(Uri::parse))
+                        .build(),
+                ).await()
                 requireNotNull(firestore).collection("users").document(user.uid).set(profile.toFirestore()).await()
                 val verificationSent = runCatching { user.sendEmailVerification().await() }.isSuccess
                 mutableState.value = FirebaseAuthUiState(
@@ -242,7 +247,12 @@ class FirebaseAuthViewModel(application: Application) : AndroidViewModel(applica
                     dailyCalorieGoalKcal = normalized.dailyCalorieGoalKcal,
                     photoUrl = photoUrl,
                 )
-                user.updateProfile(UserProfileChangeRequest.Builder().setDisplayName(normalized.name).build()).await()
+                user.updateProfile(
+                    UserProfileChangeRequest.Builder()
+                        .setDisplayName(normalized.name)
+                        .setPhotoUri(photoUrl?.let(Uri::parse))
+                        .build(),
+                ).await()
                 val userDocument = requireNotNull(firestore).collection("users").document(current.userId)
                 val batch = requireNotNull(firestore).batch()
                 batch.set(
@@ -281,6 +291,34 @@ class FirebaseAuthViewModel(application: Application) : AndroidViewModel(applica
 
     fun signOut() {
         auth?.signOut()
+    }
+
+    fun deleteAccount() {
+        val user = auth?.currentUser ?: return
+        mutableState.update { it.copy(busy = true, message = null) }
+        viewModelScope.launch {
+            runCatching {
+                val uid = user.uid
+                val lastSignIn = user.metadata?.lastSignInTimestamp ?: 0L
+                require(System.currentTimeMillis() - lastSignIn <= 5 * 60_000L) {
+                    "Account deletion requires a recent login. Sign out, sign in again, then retry."
+                }
+                val userDocument = requireNotNull(firestore).collection("users").document(uid)
+                val weightDocuments = userDocument.collection("weightEntries").get().await()
+                weightDocuments.documents.chunked(400).forEach { group ->
+                    requireNotNull(firestore).batch().also { batch ->
+                        group.forEach { batch.delete(it.reference) }
+                    }.commit().await()
+                }
+                runCatching { requireNotNull(storage).reference.child("profile-images/$uid/avatar").delete().await() }
+                userDocument.delete().await()
+                user.delete().await()
+            }.onSuccess {
+                mutableState.value = FirebaseAuthUiState(AuthLifecycle.SIGNED_OUT, message = "Account deleted.")
+            }.onFailure {
+                mutableState.update { state -> state.copy(busy = false, message = "Account deletion requires a recent login. Sign out, sign in again, then retry.") }
+            }
+        }
     }
 
     // Compresses a content URI to a bounded JPEG before uploading it to the user's fixed Storage path.

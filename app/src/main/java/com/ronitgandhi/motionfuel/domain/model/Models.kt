@@ -219,4 +219,9 @@ data class UserSettings(
     val darkTheme: Boolean = false,
     val weightKg: Double = 72.0,
     val goalType: GoalType = GoalType.CONSISTENCY,
+    val wellnessGoals: WellnessGoals = WellnessGoals(),
+    val manualSleepHours: Double = 7.5,
+    val manualRestingHeartRateBpm: Int = 68,
+    val healthConnectEnabled: Boolean = false,
+    val wearableSyncEnabled: Boolean = false,
 )

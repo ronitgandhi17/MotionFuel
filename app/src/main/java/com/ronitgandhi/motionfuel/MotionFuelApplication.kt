@@ -26,14 +26,14 @@ class MotionFuelApplication : Application() {
     // Creates the offline Room database only when it is first requested.
     val database: MotionFuelDatabase by lazy {
         Room.databaseBuilder(this, MotionFuelDatabase::class.java, "motionfuel.db")
-            .addMigrations(MIGRATION_1_2, MIGRATION_3_4)
+            .addMigrations(MIGRATION_1_2, MIGRATION_3_4, MIGRATION_4_5)
             // Recreates incompatible development schemas instead of crashing when the home screen opens.
             .fallbackToDestructiveMigration(dropAllTables = true)
             .build()
     }
     // Exposes a single repository for workout, nutrition and weight persistence.
     val repository: MotionFuelRepository by lazy {
-        MotionFuelRepository(database.workoutDao(), database.nutritionDao(), database.weightDao(), database.savedFoodDao())
+        MotionFuelRepository(database.workoutDao(), database.nutritionDao(), database.weightDao(), database.savedFoodDao(), database.hydrationDao(), database.mealPlanDao())
     }
     // Stores lightweight user preferences through DataStore.
     val settingsRepository: SettingsRepository by lazy { SettingsRepository(this) }
@@ -51,6 +51,13 @@ class MotionFuelApplication : Application() {
         val MIGRATION_3_4 = object : Migration(3, 4) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("CREATE TABLE IF NOT EXISTS `saved_foods` (`id` TEXT NOT NULL, `name` TEXT NOT NULL, `caloriesKcal` REAL NOT NULL, `proteinG` REAL NOT NULL, `carbohydratesG` REAL NOT NULL, `fatG` REAL NOT NULL, `photoUri` TEXT, `createdAtMillis` INTEGER NOT NULL, PRIMARY KEY(`id`))")
+            }
+        }
+
+        val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("CREATE TABLE IF NOT EXISTS `hydration_entries` (`id` TEXT NOT NULL, `amountMl` INTEGER NOT NULL, `consumedAtMillis` INTEGER NOT NULL, PRIMARY KEY(`id`))")
+                db.execSQL("CREATE TABLE IF NOT EXISTS `meal_plan_entries` (`id` TEXT NOT NULL, `scheduledDayStartMillis` INTEGER NOT NULL, `mealType` TEXT NOT NULL, `savedFoodId` TEXT NOT NULL, `foodName` TEXT NOT NULL, `caloriesKcal` REAL NOT NULL, `proteinG` REAL NOT NULL, `carbohydratesG` REAL NOT NULL, `fatG` REAL NOT NULL, PRIMARY KEY(`id`))")
             }
         }
     }
