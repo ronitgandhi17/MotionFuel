@@ -223,5 +223,4 @@ data class UserSettings(
     val manualSleepHours: Double = 7.5,
     val manualRestingHeartRateBpm: Int = 68,
     val healthConnectEnabled: Boolean = false,
-    val wearableSyncEnabled: Boolean = false,
 )

@@ -4,6 +4,7 @@ MotionFuel is a Kotlin/Jetpack Compose fitness and nutrition app that combines F
 
 ## Implemented in this revision
 
+- Direct Wear OS companion support has been removed; optional external health records use Health Connect only.
 - Adaptive daily fuel and hydration targets with visible evidence and bounded automatic calorie adjustments.
 - Optional, read-only Health Connect imports for steps, active energy, weight, sleep and heart rate, with install/update guidance and manual recovery fallbacks on unsupported devices.
 - Permissionless Google Play Services barcode scanning with Open Food Facts lookup.
@@ -13,7 +14,6 @@ MotionFuel is a Kotlin/Jetpack Compose fitness and nutrition app that combines F
 - Tomorrow meal planning from saved foods, individual removal and copy-to-today.
 - Editable workout/step/water goals with progress, streaks and achievements.
 - Android home-screen widget for remaining calories, steps and water.
-- Opt-in Wear OS pairing status and workout lifecycle messaging.
 - Complete local JSON data export and confirmed recent-login account deletion.
 - Shareable seven-day insight report with consistency, workout, nutrition and weight trends.
 - Firebase Authentication email/password login, registration, password reset, mandatory verification gate and persisted sessions.
@@ -87,7 +87,7 @@ See [docs/SECURITY_TEST_REPORT.md](docs/SECURITY_TEST_REPORT.md) for the execute
 4. Run the debug-only deterministic workout trace and show the filtered route and sensor-derived metrics.
 5. Tap a saved Activity to open its full summary, then use **Share activity image** to open Android's share sheet.
 6. Add a weight in Progress and switch between Day, Week and Month calorie/weight bar graphs.
-7. Open Connected health & tools to demonstrate Health Connect, Wear OS, export and widget support.
+7. Open Connected health & tools to demonstrate Health Connect, export and widget support.
 8. Scan a food barcode, plan a saved food for tomorrow, log water and review Recovery, Goals and the Weekly report.
 9. Reopen the app offline to demonstrate Room-backed history.
 

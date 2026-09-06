@@ -1,10 +1,10 @@
 # MotionFuel — Product Requirements Document (PRD)
 
 **Project type:** Advanced Android mobile systems university project  
-**Primary stack:** Kotlin, Android Studio, Jetpack Compose, Material Design 3, Firebase Authentication, Cloud Firestore, Firebase Storage, Room, DataStore, Health Connect, Google Play Services Barcode Scanner and Wearable APIs, Google Maps SDK for Android
+**Primary stack:** Kotlin, Android Studio, Jetpack Compose, Material Design 3, Firebase Authentication, Cloud Firestore, Firebase Storage, Room, DataStore, Health Connect, Google Play Services Barcode Scanner, Google Maps SDK for Android
 **Target platform:** Android 10+ (API 29+) for the university build, with graceful feature degradation when optional sensors are unavailable  
 **Architecture:** Feature-oriented Clean Architecture + MVVM  
-**Document status:** Version 3.0 — connected wellness and planning revision, September 2026
+**Document status:** Version 3.1 — Wear OS companion removal revision, September 2026
 
 ---
 
@@ -14,13 +14,14 @@ This revision keeps MotionFuel realistic for a one-student Android build and rep
 
 The most important product and architecture changes are:
 
-- Twelve advanced capabilities are now part of the assessed application: adaptive daily fuel goals, Health Connect import, barcode food lookup, workout splits and personal records, hydration tracking, recovery readiness, tomorrow meal planning, goals/streaks/achievements, an Android widget, Wear OS workout messaging, complete data export/account deletion, and a weekly insight report.
+- Direct Wear OS pairing, device discovery and workout-command messaging have been removed. Health Connect remains the only optional platform bridge for supported health records.
+- Eleven advanced capabilities are now part of the assessed application: adaptive daily fuel goals, Health Connect import, barcode food lookup, workout splits and personal records, hydration tracking, recovery readiness, tomorrow meal planning, goals/streaks/achievements, an Android widget, complete data export/account deletion, and a weekly insight report.
 - The adaptive target transparently uses exercise energy, steps, weather and recent context, returns a reason list, and limits automatic calorie adjustment to 15% of the user's profile goal.
 - Health Connect is optional and read-only. MotionFuel requests only steps, active-energy, weight, sleep and heart-rate data after a user action; manual recovery inputs remain available.
 - Barcode scanning uses Google Play Services' permissionless scanner UI and sends only the decoded product code to Open Food Facts for nutrition lookup.
 - Hydration and tomorrow meal plans are offline-first Room records covered by a non-destructive database migration.
 - Workout detail includes kilometre splits, while Activity surfaces distance, duration, pace, steps and workout-streak records.
-- The Profile tools page contains connected-health controls, Wear OS pairing status, widget instructions, complete JSON export, weekly-report sharing and permanent account deletion.
+- The Profile tools page contains Health Connect controls, widget instructions, complete JSON export, weekly-report sharing and permanent account deletion.
 
 - MotionFuel now has its own **Jetpack Compose Login and Sign Up screens** backed by Firebase Authentication email/password accounts.
 - The Sign Up flow collects **name, email, password, age, sex, height, weight and activity level**. Sex and activity level are required because the requested maintenance-calorie calculation cannot be performed correctly from age, height and weight alone.
@@ -61,7 +62,6 @@ The result is a simpler architecture than the previous third-party identity vers
 | Meal planning | Save foods into tomorrow's meals and copy the plan into today | Persist offline and allow individual removal |
 | Goals and achievements | Track active days, steps, water, streaks and milestones | Clamp editable targets and progress display to valid ranges |
 | Widget | Show remaining calories, steps and water from private app state | Show zeros before first refresh; never expose route or profile data |
-| Wear OS | Detect paired nodes and mirror start/pause/resume/finish commands when enabled | Keep phone tracking authoritative with no paired watch |
 | Export and deletion | Export complete local history as JSON and delete local/cloud account data after confirmation | Require a recent Firebase login before any cloud deletion begins |
 | Weekly report | Summarise seven-day consistency, workouts, activity, food, protein, weight change and next focus | Show missing values as unavailable, never as fabricated measurements |
 
@@ -390,7 +390,6 @@ MotionFuel is not intended to:
 ### Stretch features
 
 - Offline map tiles where licensing permits.
-- Wear OS companion.
 - On-device ML activity classifier.
 - Personalised route recommendation.
 
@@ -3407,11 +3406,7 @@ Suggest a route/target distance before exercise based on weather and desired dur
 
 Compare a lightweight trained classifier with the transparent heuristic fusion engine using the same recorded traces.
 
-### 42.3 Wear OS companion
-
-Show pace, heart rate where available and current workout controls while the phone remains the primary recorder.
-
-### 42.4 Enhanced privacy-preserving workout sharing
+### 42.3 Enhanced privacy-preserving workout sharing
 
 Optionally reintroduce user-configurable privacy-zone masking for social images in a future release. The assessed MVP follows the simplified interaction requirement: one share button and the complete recorded route, without exposing weight, calorie goal or private nutrition history.
 
@@ -3726,7 +3721,6 @@ context-aware fitness and nutrition companion
 - route difficulty score;
 - personal pace-zone adaptation;
 - barometric elevation calibration;
-- Wear OS companion;
 - on-device ML activity classifier;
 - exportable progress reports;
 - route recommendation using a routing API only after core recording is stable;
@@ -4001,7 +3995,7 @@ Avoid comments/followers/complex ranking until everything above works.
 - [ ] Saved foods can be placed in tomorrow's meal plan, removed, and copied into today's diary.
 - [ ] Editable workout, step and hydration goals drive progress, streak and achievement states.
 - [ ] The Android home-screen widget shows remaining calories, steps and water without location or identity details.
-- [ ] Wear OS sync is opt-in, reports paired-device status and mirrors workout lifecycle commands without becoming the source of truth.
+- [ ] MotionFuel has no direct Wear OS companion; supported health records are imported only through Health Connect with user-granted permissions.
 - [ ] JSON export contains complete local workouts, meals, weights and hydration; account deletion requires confirmation and recent authentication.
 - [ ] The weekly report uses only the latest seven days and can be shared through the Android share sheet.
 - [ ] Today, Food and Progress follow the documented MyFitnessPal-inspired visual hierarchy, card density, meal-section layout and quick-add interaction pattern.

@@ -33,7 +33,6 @@ import com.ronitgandhi.motionfuel.domain.model.RecoveryScore
 import com.ronitgandhi.motionfuel.domain.model.WeeklyReport
 import com.ronitgandhi.motionfuel.domain.model.WellnessGoals
 import com.ronitgandhi.motionfuel.integration.HealthConnectManager
-import com.ronitgandhi.motionfuel.integration.WearableBridge
 import com.ronitgandhi.motionfuel.widget.MotionFuelWidgetProvider
 import com.ronitgandhi.motionfuel.service.DemoTracePlayer
 import com.ronitgandhi.motionfuel.service.WorkoutSessionController
@@ -58,7 +57,6 @@ class MotionFuelViewModel(application: Application) : AndroidViewModel(applicati
     private val insightEngine = AdaptiveInsightEngine()
     private val demoPlayer = DemoTracePlayer()
     val healthConnectManager = HealthConnectManager(application)
-    private val wearableBridge = WearableBridge(application)
     private val todayRange = localDayRange()
     private val thirtyDaysAgo = todayRange.first - (29L * 86_400_000L)
     private val tomorrowRange = todayRange.second to todayRange.second + 86_400_000L
@@ -125,8 +123,6 @@ class MotionFuelViewModel(application: Application) : AndroidViewModel(applicati
 
     private val mutableConnectedHealth = MutableStateFlow(ConnectedHealthSnapshot())
     val connectedHealth = mutableConnectedHealth.asStateFlow()
-    private val mutableWearableStatus = MutableStateFlow("Wearable sync is off")
-    val wearableStatus = mutableWearableStatus.asStateFlow()
 
     private val mutableWeather = MutableStateFlow(
         WeatherContext(temperatureC = 19.0, humidityPercent = 61, windSpeedKph = 13.0, isRaining = false, sourceAgeMinutes = 0),
@@ -234,7 +230,6 @@ class MotionFuelViewModel(application: Application) : AndroidViewModel(applicati
         viewModelScope.launch {
             val saved = settingsRepository.settings.first()
             if (saved.healthConnectEnabled) refreshHealthConnect()
-            if (saved.wearableSyncEnabled) setWearableSync(true)
         }
         viewModelScope.launch {
             combine(adaptiveFuelTarget, nutritionTotals, goalProgress) { target, food, goals -> Triple(target, food, goals) }
@@ -387,16 +382,6 @@ class MotionFuelViewModel(application: Application) : AndroidViewModel(applicati
         }
     }
 
-    fun setWearableSync(enabled: Boolean) {
-        viewModelScope.launch {
-            settingsRepository.setWearableSyncEnabled(enabled)
-            mutableWearableStatus.value = if (!enabled) "Wearable sync is off" else {
-                val count = wearableBridge.connectedNodeCount()
-                if (count > 0) "$count Wear OS device${if (count == 1) "" else "s"} connected" else "No paired Wear OS device found"
-            }
-        }
-    }
-
     // Stores a dated weight locally so Progress remains available offline.
     fun addWeight(weightKg: Double) {
         if (weightKg !in 30.0..350.0) return
@@ -411,7 +396,6 @@ class MotionFuelViewModel(application: Application) : AndroidViewModel(applicati
         mutableWeather.value = WeatherContext(temperatureC = 30.0, humidityPercent = 48, windSpeedKph = 11.0, isRaining = false)
         mutableWeatherStatus.value = "Assessor demo context • elevated heat"
         demoPlayer.start(viewModelScope, type, settings.value.weightKg)
-        sendWearableCommand("start:${type.name}")
     }
 
     fun startReal(type: WorkoutType) {
@@ -424,7 +408,6 @@ class MotionFuelViewModel(application: Application) : AndroidViewModel(applicati
             putExtra(WorkoutTrackingService.EXTRA_WEIGHT_KG, settings.value.weightKg)
         }
         ContextCompat.startForegroundService(getApplication(), intent)
-        sendWearableCommand("start:${type.name}")
     }
 
     fun pauseOrResumeWorkout() {
@@ -435,7 +418,6 @@ class MotionFuelViewModel(application: Application) : AndroidViewModel(applicati
             val action = if (current.status == WorkoutStatus.PAUSED) WorkoutTrackingService.ACTION_RESUME else WorkoutTrackingService.ACTION_PAUSE
             getApplication<Application>().startService(Intent(getApplication(), WorkoutTrackingService::class.java).setAction(action))
         }
-        sendWearableCommand(if (current.status == WorkoutStatus.PAUSED) "resume" else "pause")
     }
 
     fun finishWorkout() {
@@ -464,7 +446,6 @@ class MotionFuelViewModel(application: Application) : AndroidViewModel(applicati
                 ),
             )
         }
-        sendWearableCommand("finish")
     }
 
     fun dismissCompletedWorkout() {
@@ -502,11 +483,6 @@ class MotionFuelViewModel(application: Application) : AndroidViewModel(applicati
                 consumedAtMillis = consumedAtMillis,
             ),
         )
-    }
-
-    private fun sendWearableCommand(command: String) {
-        if (!settings.value.wearableSyncEnabled) return
-        viewModelScope.launch { wearableBridge.sendWorkoutCommand(command) }
     }
 
     private fun distinctActiveDays(history: List<WorkoutSummary>, daysAgo: IntRange): Int {

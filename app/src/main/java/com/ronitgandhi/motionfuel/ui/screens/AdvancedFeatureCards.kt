@@ -20,7 +20,6 @@ import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.HealthAndSafety
 import androidx.compose.material.icons.rounded.LocalDrink
 import androidx.compose.material.icons.rounded.Share
-import androidx.compose.material.icons.rounded.Watch
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.Icon
@@ -29,7 +28,6 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.TextButton
@@ -170,13 +168,10 @@ fun ProgressWellnessCards(
 @Composable
 fun ConnectedToolsScreen(
     health: ConnectedHealthSnapshot,
-    settings: UserSettings,
-    wearableStatus: String,
     onBack: () -> Unit,
     onRequestHealthPermissions: () -> Unit,
     onOpenHealthConnectSetup: () -> Unit,
     onRefreshHealth: () -> Unit,
-    onWearableChanged: (Boolean) -> Unit,
     onExport: () -> Unit,
     onShareReport: () -> Unit,
     onDeleteAccount: () -> Unit,
@@ -213,16 +208,6 @@ fun ConnectedToolsScreen(
                         OutlinedButton(onClick = onOpenHealthConnectSetup, modifier = Modifier.fillMaxWidth()) { Text("Open Health Connect setup") }
                         Text("Recovery can still use the manual sleep and resting-heart-rate fields in Progress.", style = MaterialTheme.typography.labelSmall)
                     }
-                }
-            }
-        }
-        item {
-            Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp)) {
-                Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Rounded.Watch, null)
-                    Spacer(Modifier.size(10.dp))
-                    Column(Modifier.weight(1f)) { Text("Wear OS sync", fontWeight = FontWeight.Bold); Text(wearableStatus, style = MaterialTheme.typography.bodySmall) }
-                    Switch(settings.wearableSyncEnabled, onWearableChanged)
                 }
             }
         }

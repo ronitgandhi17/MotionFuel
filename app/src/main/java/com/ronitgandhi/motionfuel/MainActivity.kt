@@ -190,7 +190,6 @@ private fun MotionFuelRoot(
     val weeklyReport by viewModel.weeklyReport.collectAsStateWithLifecycle()
     val goalProgress by viewModel.goalProgress.collectAsStateWithLifecycle()
     val connectedHealth by viewModel.connectedHealth.collectAsStateWithLifecycle()
-    val wearableStatus by viewModel.wearableStatus.collectAsStateWithLifecycle()
     val context = LocalContext.current
     // Keeps swipe gestures and bottom-navigation selection on the same five-page state.
     val pagerState = rememberPagerState(initialPage = MainTab.TODAY.ordinal, pageCount = { MainTab.entries.size })
@@ -333,13 +332,11 @@ private fun MotionFuelRoot(
                         onRootPageChanged = { profileIsRootPage = it },
                         onSignOut = onSignOut,
                         connectedHealth = connectedHealth,
-                        wearableStatus = wearableStatus,
                         onRequestHealthPermissions = { healthPermissionLauncher.launch(viewModel.healthConnectManager.permissions) },
                         onOpenHealthConnectSetup = {
                             runCatching { context.startActivity(viewModel.healthConnectManager.setupIntent()) }
                         },
                         onRefreshHealth = viewModel::refreshHealthConnect,
-                        onWearableChanged = viewModel::setWearableSync,
                         onExport = {
                             navigationScope.launch {
                                 val intent = withContext(Dispatchers.IO) {
