@@ -41,11 +41,17 @@ class AdvancedFeaturesConfigurationTest {
     @Test
     fun healthPermissionsAreReadOnlyAndOptional() {
         val manifest = appFile("AndroidManifest.xml")
+        val manager = appFile("java/com/ronitgandhi/motionfuel/integration/HealthConnectManager.kt")
+        val screen = appFile("java/com/ronitgandhi/motionfuel/ui/screens/AdvancedFeatureCards.kt")
         assertTrue(manifest.contains("android.permission.health.READ_STEPS"))
         assertTrue(manifest.contains("android.permission.health.READ_SLEEP"))
         assertTrue(manifest.contains("androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE"))
         assertTrue(manifest.contains("android.intent.action.VIEW_PERMISSION_USAGE"))
         assertFalse(manifest.contains("android.permission.health.WRITE_"))
+        assertTrue(manager.contains("SDK_UNAVAILABLE_PROVIDER_UPDATE_REQUIRED"))
+        assertTrue(manager.contains("play.google.com/store/apps/details?id=com.google.android.apps.healthdata"))
+        assertTrue(manager.contains("ACTION_HEALTH_CONNECT_SETTINGS"))
+        assertTrue(screen.contains("Open Health Connect setup"))
     }
 
     @Test

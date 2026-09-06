@@ -1,6 +1,9 @@
 package com.ronitgandhi.motionfuel.integration
 
 import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import android.os.Build
 import androidx.health.connect.client.HealthConnectClient
 import androidx.health.connect.client.PermissionController
 import androidx.health.connect.client.permission.HealthPermission
@@ -27,10 +30,24 @@ class HealthConnectManager(private val context: Context) {
 
     fun permissionContract() = PermissionController.createRequestPermissionResultContract()
 
-    fun isAvailable(): Boolean = HealthConnectClient.getSdkStatus(context) == HealthConnectClient.SDK_AVAILABLE
+    fun sdkStatus(): Int = HealthConnectClient.getSdkStatus(context)
+
+    fun isAvailable(): Boolean = sdkStatus() == HealthConnectClient.SDK_AVAILABLE
+
+    fun unavailableMessage(): String = when (sdkStatus()) {
+        HealthConnectClient.SDK_UNAVAILABLE_PROVIDER_UPDATE_REQUIRED -> "Health Connect must be installed or updated"
+        else -> "Health Connect is not supported by this device or emulator"
+    }
+
+    fun setupIntent(): Intent = if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.TIRAMISU) {
+        Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=com.google.android.apps.healthdata"))
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    } else {
+        Intent(HealthConnectClient.ACTION_HEALTH_CONNECT_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    }
 
     suspend fun readToday(): ConnectedHealthSnapshot {
-        if (!isAvailable()) return ConnectedHealthSnapshot(status = "Health Connect is not available on this device")
+        if (!isAvailable()) return ConnectedHealthSnapshot(status = unavailableMessage())
         val client = HealthConnectClient.getOrCreate(context)
         val granted = client.permissionController.getGrantedPermissions()
         if (!granted.containsAll(permissions)) return ConnectedHealthSnapshot(available = true, status = "Permission required")

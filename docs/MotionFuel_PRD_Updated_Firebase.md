@@ -53,7 +53,7 @@ The result is a simpler architecture than the previous third-party identity vers
 | Capability | Required behaviour | Failure/fallback behaviour |
 | --- | --- | --- |
 | Adaptive fuel | Recommend daily calorie and hydration targets with visible reasons and a ±15% calorie guardrail | Use the profile goal and normal hydration baseline when context is unavailable |
-| Health Connect | User-initiated read access to steps, active energy, weight, sleep and heart rate | Remain optional; manual recovery inputs and phone sensors continue working |
+| Health Connect | User-initiated read access to steps, active energy, weight, sleep and heart rate; unavailable devices receive an install/update/settings action | Remain optional; unsupported emulators are explained and manual recovery inputs and phone sensors continue working |
 | Barcode scan | Open the Play Services scanner and map a barcode to a food result | Show a retryable no-match/offline message; keep manual entry available |
 | Splits and records | Show whole-kilometre splits and personal records from saved valid workouts | Short activities show no split rows rather than fabricated data |
 | Hydration | Add timestamped water and adapt the target for exercise, heat and humidity | Persist records locally offline |

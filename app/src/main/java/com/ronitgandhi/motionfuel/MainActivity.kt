@@ -335,6 +335,9 @@ private fun MotionFuelRoot(
                         connectedHealth = connectedHealth,
                         wearableStatus = wearableStatus,
                         onRequestHealthPermissions = { healthPermissionLauncher.launch(viewModel.healthConnectManager.permissions) },
+                        onOpenHealthConnectSetup = {
+                            runCatching { context.startActivity(viewModel.healthConnectManager.setupIntent()) }
+                        },
                         onRefreshHealth = viewModel::refreshHealthConnect,
                         onWearableChanged = viewModel::setWearableSync,
                         onExport = {

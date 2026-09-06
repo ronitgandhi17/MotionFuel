@@ -3,7 +3,7 @@
 | Area | Status | Evidence |
 | --- | --- | --- |
 | Adaptive daily fuel | Implemented | Guardrailed pure-Kotlin engine combines exercise energy, steps, weather and context with visible reasons |
-| Health Connect | Implemented; device permission required | Optional read-only steps, active energy, weight, sleep and heart-rate import with manual fallback |
+| Health Connect | Implemented; compatible provider and permission required | Optional read-only import, install/update/settings recovery UI, unsupported-emulator explanation and manual fallback |
 | Barcode food scan | Implemented; Google Play Services required | Permissionless scanner UI and Open Food Facts barcode endpoint |
 | Workout splits/records | Implemented | Kilometre split calculation, route elevation delta, distance/duration/pace/step records and streaks |
 | Hydration | Implemented locally | Room v5 table, Today quick-add, adaptive target and widget publication |

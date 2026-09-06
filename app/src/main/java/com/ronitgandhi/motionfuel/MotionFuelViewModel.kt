@@ -229,7 +229,7 @@ class MotionFuelViewModel(application: Application) : AndroidViewModel(applicati
         refreshWeather()
         mutableConnectedHealth.value = ConnectedHealthSnapshot(
             available = healthConnectManager.isAvailable(),
-            status = if (healthConnectManager.isAvailable()) "Ready to connect" else "Health Connect is unavailable on this device",
+            status = if (healthConnectManager.isAvailable()) "Ready to connect" else healthConnectManager.unavailableMessage(),
         )
         viewModelScope.launch {
             val saved = settingsRepository.settings.first()

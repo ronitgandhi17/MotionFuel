@@ -5,7 +5,7 @@ MotionFuel is a Kotlin/Jetpack Compose fitness and nutrition app that combines F
 ## Implemented in this revision
 
 - Adaptive daily fuel and hydration targets with visible evidence and bounded automatic calorie adjustments.
-- Optional, read-only Health Connect imports for steps, active energy, weight, sleep and heart rate, with manual recovery fallbacks.
+- Optional, read-only Health Connect imports for steps, active energy, weight, sleep and heart rate, with install/update guidance and manual recovery fallbacks on unsupported devices.
 - Permissionless Google Play Services barcode scanning with Open Food Facts lookup.
 - Whole-kilometre workout splits, personal records and workout streak calculation.
 - Offline-first hydration logging and weather/activity-aware water targets.

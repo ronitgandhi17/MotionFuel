@@ -174,6 +174,7 @@ fun ConnectedToolsScreen(
     wearableStatus: String,
     onBack: () -> Unit,
     onRequestHealthPermissions: () -> Unit,
+    onOpenHealthConnectSetup: () -> Unit,
     onRefreshHealth: () -> Unit,
     onWearableChanged: (Boolean) -> Unit,
     onExport: () -> Unit,
@@ -201,7 +202,17 @@ fun ConnectedToolsScreen(
                         health.sleepHours?.let { AdvancedRow("Sleep", String.format("%.1f h", it)) }
                         health.restingHeartRateBpm?.let { AdvancedRow("Resting HR", "$it bpm") }
                         OutlinedButton(onClick = onRefreshHealth, modifier = Modifier.fillMaxWidth()) { Icon(Icons.Rounded.CloudSync, null); Text(" Refresh") }
-                    } else Button(onClick = onRequestHealthPermissions, enabled = health.available, modifier = Modifier.fillMaxWidth()) { Text("Connect Health Connect") }
+                    } else if (health.available) {
+                        Button(onClick = onRequestHealthPermissions, modifier = Modifier.fillMaxWidth()) { Text("Connect Health Connect") }
+                    } else {
+                        Text(
+                            "Use a Google Play-enabled Android device. On Android 13 or earlier, install Health Connect; some emulators do not support it.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        OutlinedButton(onClick = onOpenHealthConnectSetup, modifier = Modifier.fillMaxWidth()) { Text("Open Health Connect setup") }
+                        Text("Recovery can still use the manual sleep and resting-heart-rate fields in Progress.", style = MaterialTheme.typography.labelSmall)
+                    }
                 }
             }
         }
