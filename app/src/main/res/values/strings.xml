@@ -1,4 +1,7 @@
 <resources>
     <string name="app_name">MotionFuel</string>
     <string name="widget_description">Calories, steps and hydration at a glance</string>
+    <string name="smart_planning">Smart planning</string>
+    <string name="smart_planning_subtitle">Food, training, community and data tools</string>
+    <string name="switch_language">Switch English / हिन्दी</string>
 </resources>

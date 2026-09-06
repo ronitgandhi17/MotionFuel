@@ -310,6 +310,13 @@ class FirebaseAuthViewModel(application: Application) : AndroidViewModel(applica
                         group.forEach { batch.delete(it.reference) }
                     }.commit().await()
                 }
+                val safetyShares = requireNotNull(firestore).collection("safetyShares").whereEqualTo("ownerUid", uid).get().await()
+                safetyShares.documents.chunked(400).forEach { group -> requireNotNull(firestore).batch().also { batch -> group.forEach { batch.delete(it.reference) } }.commit().await() }
+                val ownedChallenges = requireNotNull(firestore).collection("challenges").whereEqualTo("ownerUid", uid).get().await()
+                ownedChallenges.documents.forEach { challenge ->
+                    challenge.reference.collection("members").get().await().documents.chunked(400).forEach { group -> requireNotNull(firestore).batch().also { batch -> group.forEach { batch.delete(it.reference) } }.commit().await() }
+                    challenge.reference.delete().await()
+                }
                 runCatching { requireNotNull(storage).reference.child("profile-images/$uid/avatar").delete().await() }
                 userDocument.delete().await()
                 user.delete().await()

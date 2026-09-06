@@ -29,6 +29,9 @@ class SettingsRepository(private val context: Context) {
         val SleepHours = doublePreferencesKey("manual_sleep_hours")
         val RestingHeartRate = intPreferencesKey("manual_resting_heart_rate")
         val HealthConnect = booleanPreferencesKey("health_connect_enabled")
+        val SmartReminders = booleanPreferencesKey("smart_reminders_enabled")
+        val AccessibleDisplay = booleanPreferencesKey("accessible_display")
+        val AppLanguage = stringPreferencesKey("app_language")
     }
 
     val settings: Flow<UserSettings> = context.motionFuelDataStore.data.map { preferences ->
@@ -46,6 +49,9 @@ class SettingsRepository(private val context: Context) {
             manualSleepHours = preferences[Keys.SleepHours] ?: 7.5,
             manualRestingHeartRateBpm = preferences[Keys.RestingHeartRate] ?: 68,
             healthConnectEnabled = preferences[Keys.HealthConnect] ?: false,
+            smartRemindersEnabled = preferences[Keys.SmartReminders] ?: false,
+            accessibleDisplay = preferences[Keys.AccessibleDisplay] ?: false,
+            appLanguage = preferences[Keys.AppLanguage] ?: "en",
         )
     }
 
@@ -63,4 +69,7 @@ class SettingsRepository(private val context: Context) {
         it[Keys.RestingHeartRate] = restingHeartRate.coerceIn(30, 220)
     }
     suspend fun setHealthConnectEnabled(value: Boolean) = context.motionFuelDataStore.edit { it[Keys.HealthConnect] = value }
+    suspend fun setSmartRemindersEnabled(value: Boolean) = context.motionFuelDataStore.edit { it[Keys.SmartReminders] = value }
+    suspend fun setAccessibleDisplay(value: Boolean) = context.motionFuelDataStore.edit { it[Keys.AccessibleDisplay] = value }
+    suspend fun setAppLanguage(value: String) = context.motionFuelDataStore.edit { it[Keys.AppLanguage] = value.takeIf { code -> code in setOf("en", "hi") } ?: "en" }
 }

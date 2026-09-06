@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">MotionFuel</string>
+    <string name="widget_description">कैलोरी, कदम और पानी की जानकारी</string>
+    <string name="smart_planning">स्मार्ट योजना</string>
+    <string name="smart_planning_subtitle">भोजन, प्रशिक्षण, समुदाय और डेटा टूल</string>
+    <string name="switch_language">हिन्दी / English बदलें</string>
+</resources>

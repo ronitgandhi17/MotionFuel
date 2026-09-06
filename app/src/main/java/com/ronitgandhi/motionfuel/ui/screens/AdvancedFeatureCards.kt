@@ -172,6 +172,7 @@ fun ConnectedToolsScreen(
     onRequestHealthPermissions: () -> Unit,
     onOpenHealthConnectSetup: () -> Unit,
     onRefreshHealth: () -> Unit,
+    onOpenSmartPlanning: () -> Unit,
     onExport: () -> Unit,
     onShareReport: () -> Unit,
     onDeleteAccount: () -> Unit,
@@ -182,6 +183,11 @@ fun ConnectedToolsScreen(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = onBack) { Icon(Icons.Rounded.ArrowBack, "Back") }
                 Text("Connected health & tools", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black)
+            }
+        }
+        item {
+            Button(onClick = onOpenSmartPlanning, modifier = Modifier.fillMaxWidth().height(52.dp)) {
+                Text("Open smart planning & community")
             }
         }
         item {

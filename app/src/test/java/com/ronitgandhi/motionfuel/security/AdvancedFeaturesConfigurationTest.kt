@@ -35,6 +35,8 @@ class AdvancedFeaturesConfigurationTest {
         assertTrue(build.contains("androidx.health.connect:connect-client"))
         assertTrue(build.contains("play-services-code-scanner"))
         assertFalse(build.contains("play-services-wearable"))
+        assertTrue(build.contains("text-recognition"))
+        assertTrue(build.contains("work-runtime-ktx"))
     }
 
     @Test
@@ -83,13 +85,25 @@ class AdvancedFeaturesConfigurationTest {
     }
 
     @Test
-    fun databaseMigrationCreatesHydrationAndMealPlanTables() {
+    fun databaseMigrationCreatesExpansionTables() {
         val app = appFile("java/com/ronitgandhi/motionfuel/MotionFuelApplication.kt")
         val db = appFile("java/com/ronitgandhi/motionfuel/data/local/MotionFuelDatabase.kt")
-        assertTrue(db.contains("version = 5"))
-        assertTrue(app.contains("MIGRATION_4_5"))
-        assertTrue(app.contains("hydration_entries"))
-        assertTrue(app.contains("meal_plan_entries"))
+        assertTrue(db.contains("version = 6"))
+        assertTrue(app.contains("MIGRATION_5_6"))
+        assertTrue(app.contains("recipes"))
+        assertTrue(app.contains("planned_workouts"))
+        assertTrue(app.contains("planned_routes"))
+        assertTrue(app.contains("challenges"))
+    }
+
+    @Test
+    fun expansionFeaturesHaveSecuredPlatformEntryPoints() {
+        val screen = appFile("java/com/ronitgandhi/motionfuel/ui/screens/ExpansionHubScreen.kt")
+        val manifest = appFile("AndroidManifest.xml")
+        val paths = appFile("res/xml/file_paths.xml")
+        listOf("Smart meal recommendations", "Scan nutrition label", "Recipe builder", "Workout planner", "Route planner", "Live safety sharing", "Exercise-zone analysis", "Progress prediction", "Challenges and leaderboard", "Personal-best celebrations", "Intelligent notifications", "offline routes", "Data-source management", "Accessibility and localisation").forEach { assertTrue(it, screen.contains(it, ignoreCase = true)) }
+        assertTrue(manifest.contains("android:scheme=\"motionfuel\""))
+        assertTrue(paths.contains("path=\"label_scans/\""))
     }
 
     @Test

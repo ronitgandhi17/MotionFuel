@@ -173,3 +173,23 @@ test("only an avatar owner can delete the stored image", async () => {
   await assertFails(deleteObject(storageRef(attackerStorage, `profile-images/${ownerId}/avatar`)));
   await assertSucceeds(deleteObject(avatar));
 });
+
+test("safety shares are time limited and writable only by their owner", async () => {
+  const ownerDb = context(ownerId, ownerEmail, true).firestore();
+  const viewerDb = context("viewer", "viewer@example.com", true).firestore();
+  const share = doc(ownerDb, "safetyShares", "safe-token");
+  await assertSucceeds(setDoc(share, { ownerUid: ownerId, expiresAtMillis: Date.now() + 3000000, active: true, latitude: -37.8, longitude: 144.9, updatedAtMillis: Date.now() }));
+  await assertSucceeds(getDoc(doc(viewerDb, "safetyShares", "safe-token")));
+  await assertFails(updateDoc(doc(viewerDb, "safetyShares", "safe-token"), { latitude: 0 }));
+  await assertFails(setDoc(doc(ownerDb, "safetyShares", "too-long"), { ownerUid: ownerId, expiresAtMillis: Date.now() + 7200000, active: true, latitude: 0, longitude: 0, updatedAtMillis: Date.now() }));
+});
+
+test("verified users can join challenges but cannot write another member score", async () => {
+  const ownerDb = context(ownerId, ownerEmail, true).firestore();
+  const memberDb = context("member", "member@example.com", true).firestore();
+  const challenge = doc(ownerDb, "challenges", "weekly-5k");
+  await assertSucceeds(setDoc(challenge, { title: "Weekly 5K", metric: "km", target: 5, endsAtMillis: Date.now() + 604800000, ownerUid: ownerId }));
+  await assertSucceeds(setDoc(doc(memberDb, "challenges", "weekly-5k", "members", "member"), { displayName: "Member", score: 2.5 }));
+  await assertFails(setDoc(doc(memberDb, "challenges", "weekly-5k", "members", ownerId), { displayName: "Fake owner", score: 999 }));
+  await assertSucceeds(getDoc(doc(memberDb, "challenges", "weekly-5k", "members", "member")));
+});

@@ -4,6 +4,9 @@ MotionFuel is a Kotlin/Jetpack Compose fitness and nutrition app that combines F
 
 ## Implemented in this revision
 
+- Smart Planning hub with meal recommendations, nutrition-label OCR, recipe/serving calculations, workout reminders, loop-route planning, offline polyline previews, exercise zones and cautious progress prediction.
+- One-hour live safety links, opt-in Firebase challenges/leaderboards, personal-best celebration cards and explicit data-source attribution.
+- Opt-in contextual notifications plus accessible text scaling and English/Hindi application locale preferences.
 - Direct Wear OS companion support has been removed; optional external health records use Health Connect only.
 - Adaptive daily fuel and hydration targets with visible evidence and bounded automatic calorie adjustments.
 - Optional, read-only Health Connect imports for steps, active energy, weight, sleep and heart rate, with install/update guidance and manual recovery fallbacks on unsupported devices.
@@ -87,9 +90,11 @@ See [docs/SECURITY_TEST_REPORT.md](docs/SECURITY_TEST_REPORT.md) for the execute
 4. Run the debug-only deterministic workout trace and show the filtered route and sensor-derived metrics.
 5. Tap a saved Activity to open its full summary, then use **Share activity image** to open Android's share sheet.
 6. Add a weight in Progress and switch between Day, Week and Month calorie/weight bar graphs.
-7. Open Connected health & tools to demonstrate Health Connect, export and widget support.
-8. Scan a food barcode, plan a saved food for tomorrow, log water and review Recovery, Goals and the Weekly report.
-9. Reopen the app offline to demonstrate Room-backed history.
+7. Open Connected health & tools to demonstrate Health Connect, export, widget support and the Smart Planning hub.
+8. Scan a nutrition label, create a recipe, schedule a workout and generate an offline route preview.
+9. Start/stop a safety share, create or join a challenge, inspect sources and switch accessible display/language.
+10. Scan a food barcode, plan a saved food for tomorrow, log water and review Recovery, Goals and the Weekly report.
+11. Reopen the app offline to demonstrate Room-backed history.
 
 ## Privacy
 

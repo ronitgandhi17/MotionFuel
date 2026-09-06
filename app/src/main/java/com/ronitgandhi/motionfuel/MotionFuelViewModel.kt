@@ -2,12 +2,19 @@ package com.ronitgandhi.motionfuel
 
 import android.app.Application
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.Manifest
+import android.location.LocationManager
 import androidx.core.content.ContextCompat
+import com.google.firebase.FirebaseApp
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.ronitgandhi.motionfuel.domain.algorithm.AdaptiveInsightEngine
 import com.ronitgandhi.motionfuel.domain.algorithm.FoodPhotoPolicy
 import com.ronitgandhi.motionfuel.domain.algorithm.WellnessEngine
+import com.ronitgandhi.motionfuel.domain.algorithm.ExpansionEngine
 import com.ronitgandhi.motionfuel.domain.model.ActivityType
 import com.ronitgandhi.motionfuel.domain.model.DailyContext
 import com.ronitgandhi.motionfuel.domain.model.FoodSearchResult
@@ -26,17 +33,27 @@ import com.ronitgandhi.motionfuel.domain.model.WeightEntry
 import com.ronitgandhi.motionfuel.domain.model.AdaptiveFuelTarget
 import com.ronitgandhi.motionfuel.domain.model.ConnectedHealthSnapshot
 import com.ronitgandhi.motionfuel.domain.model.GoalProgress
+import com.ronitgandhi.motionfuel.domain.model.GeoPoint
 import com.ronitgandhi.motionfuel.domain.model.HydrationEntry
 import com.ronitgandhi.motionfuel.domain.model.MealPlanEntry
 import com.ronitgandhi.motionfuel.domain.model.PersonalRecords
 import com.ronitgandhi.motionfuel.domain.model.RecoveryScore
 import com.ronitgandhi.motionfuel.domain.model.WeeklyReport
 import com.ronitgandhi.motionfuel.domain.model.WellnessGoals
+import com.ronitgandhi.motionfuel.domain.model.Challenge
+import com.ronitgandhi.motionfuel.domain.model.ChallengeStanding
+import com.ronitgandhi.motionfuel.domain.model.MealRecommendation
+import com.ronitgandhi.motionfuel.domain.model.PlannedRoute
+import com.ronitgandhi.motionfuel.domain.model.PlannedWorkout
+import com.ronitgandhi.motionfuel.domain.model.Recipe
+import com.ronitgandhi.motionfuel.domain.model.RecipeIngredient
 import com.ronitgandhi.motionfuel.integration.HealthConnectManager
 import com.ronitgandhi.motionfuel.widget.MotionFuelWidgetProvider
 import com.ronitgandhi.motionfuel.service.DemoTracePlayer
 import com.ronitgandhi.motionfuel.service.WorkoutSessionController
 import com.ronitgandhi.motionfuel.service.WorkoutTrackingService
+import com.ronitgandhi.motionfuel.service.SmartReminderWorker
+import com.ronitgandhi.motionfuel.service.WorkoutReminderWorker
 import java.util.Calendar
 import java.util.UUID
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -48,6 +65,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
 
 class MotionFuelViewModel(application: Application) : AndroidViewModel(application) {
     private val app = application as MotionFuelApplication
@@ -61,6 +79,11 @@ class MotionFuelViewModel(application: Application) : AndroidViewModel(applicati
     private val thirtyDaysAgo = todayRange.first - (29L * 86_400_000L)
     private val tomorrowRange = todayRange.second to todayRange.second + 86_400_000L
     private var workoutStartedAtMillis = 0L
+    private val firestore: FirebaseFirestore? = if (FirebaseApp.getApps(application).isNotEmpty()) FirebaseFirestore.getInstance() else null
+    private val mutableSafetyShareUrl = MutableStateFlow<String?>(null)
+    val safetyShareUrl = mutableSafetyShareUrl.asStateFlow()
+    private val mutableChallengeStandings = MutableStateFlow<Map<String, List<ChallengeStanding>>>(emptyMap())
+    val challengeStandings = mutableChallengeStandings.asStateFlow()
 
     val telemetry = WorkoutSessionController.telemetry
     val settings: StateFlow<UserSettings> = settingsRepository.settings.stateIn(
@@ -120,6 +143,13 @@ class MotionFuelViewModel(application: Application) : AndroidViewModel(applicati
         SharingStarted.WhileSubscribed(5_000),
         emptyList(),
     )
+    val recipes: StateFlow<List<Recipe>> = repository.observeRecipes().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    val plannedWorkouts: StateFlow<List<PlannedWorkout>> = repository.observePlannedWorkouts().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    val plannedRoutes: StateFlow<List<PlannedRoute>> = repository.observePlannedRoutes().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    val challenges: StateFlow<List<Challenge>> = repository.observeChallenges().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    val mealRecommendations: StateFlow<List<MealRecommendation>> = combine(savedFoods, nutritionTotals) { foods, totals ->
+        ExpansionEngine.recommendMeals(foods, totals, 2_200)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     private val mutableConnectedHealth = MutableStateFlow(ConnectedHealthSnapshot())
     val connectedHealth = mutableConnectedHealth.asStateFlow()
@@ -236,6 +266,23 @@ class MotionFuelViewModel(application: Application) : AndroidViewModel(applicati
                 .collect { (target, food, goals) ->
                     MotionFuelWidgetProvider.publish(application, target.recommendedKcal - food.caloriesKcal.toInt(), goals.stepsToday, goals.waterTodayMl)
                 }
+        }
+        viewModelScope.launch {
+            telemetry.collect { snapshot ->
+                val token = mutableSafetyShareUrl.value?.substringAfterLast('/') ?: return@collect
+                val point = snapshot.route.lastOrNull() ?: return@collect
+                runCatching { firestore?.collection("safetyShares")?.document(token)?.update(mapOf("latitude" to point.latitude, "longitude" to point.longitude, "updatedAtMillis" to System.currentTimeMillis()))?.await() }
+            }
+        }
+        firestore?.collection("challenges")?.addSnapshotListener { snapshot, _ ->
+            snapshot?.documents?.forEach { document ->
+                val challenge = Challenge(document.id, document.getString("title").orEmpty(), document.getString("metric").orEmpty(), document.getDouble("target") ?: 0.0, 0.0, document.getLong("endsAtMillis") ?: 0L, document.getString("ownerUid").orEmpty())
+                viewModelScope.launch { repository.saveChallenge(challenge) }
+                document.reference.collection("members").addSnapshotListener { members, _ ->
+                    val standings = members?.documents?.map { ChallengeStanding(it.id, it.getString("displayName") ?: "Member", it.getDouble("score") ?: 0.0) }?.sortedByDescending { it.score }.orEmpty()
+                    mutableChallengeStandings.value = mutableChallengeStandings.value + (document.id to standings)
+                }
+            }
         }
     }
 
@@ -366,6 +413,92 @@ class MotionFuelViewModel(application: Application) : AndroidViewModel(applicati
     fun updateWellnessGoals(goals: WellnessGoals) = viewModelScope.launch { settingsRepository.setWellnessGoals(goals) }
     fun updateRecoveryInputs(sleepHours: Double, restingHeartRate: Int) = viewModelScope.launch { settingsRepository.setRecoveryInputs(sleepHours, restingHeartRate) }
 
+    fun saveRecipe(name: String, servings: Double, ingredients: List<RecipeIngredient>) {
+        if (name.isBlank() || servings !in 1.0..100.0 || ingredients.isEmpty()) return
+        viewModelScope.launch { repository.saveRecipe(Recipe(UUID.randomUUID().toString(), name.trim(), ingredients, servings, System.currentTimeMillis())) }
+    }
+
+    fun deleteRecipe(id: String) = viewModelScope.launch { repository.deleteRecipe(id) }
+
+    fun scheduleWorkout(type: WorkoutType, scheduledAtMillis: Long, distanceMeters: Double, durationMinutes: Int) {
+        if (scheduledAtMillis <= System.currentTimeMillis() || distanceMeters !in 0.0..100_000.0 || durationMinutes !in 5..600) return
+        val item = PlannedWorkout(UUID.randomUUID().toString(), type, scheduledAtMillis, distanceMeters, durationMinutes)
+        viewModelScope.launch { repository.savePlannedWorkout(item) }
+        WorkoutReminderWorker.schedule(getApplication(), item.id, scheduledAtMillis, "${type.name.lowercase().replaceFirstChar(Char::uppercase)} • ${(distanceMeters / 1000).toInt()} km • $durationMinutes min")
+    }
+
+    fun setWorkoutPlanCompleted(item: PlannedWorkout, completed: Boolean) = viewModelScope.launch { repository.savePlannedWorkout(item.copy(completed = completed)) }
+    fun deleteWorkoutPlan(id: String) = viewModelScope.launch { repository.deletePlannedWorkout(id) }
+
+    fun createRoutePlan(name: String, targetDistanceMeters: Double) {
+        if (name.isBlank() || targetDistanceMeters !in 500.0..42_000.0) return
+        val hasLocation = ContextCompat.checkSelfPermission(getApplication(), Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED || ContextCompat.checkSelfPermission(getApplication(), Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
+        val lastLocation = if (hasLocation) runCatching {
+            val manager = getApplication<Application>().getSystemService(LocationManager::class.java)
+            manager.getProviders(true).mapNotNull { manager.getLastKnownLocation(it) }.maxByOrNull { it.time }
+        }.getOrNull() else null
+        val origin = telemetry.value.route.lastOrNull() ?: lastLocation?.let { GeoPoint(it.latitude, it.longitude, if (it.hasAltitude()) it.altitude else null, it.accuracy, it.time) } ?: GeoPoint(-37.8136, 144.9631, timestampMillis = System.currentTimeMillis())
+        val points = ExpansionEngine.generateLoopRoute(origin, targetDistanceMeters)
+        viewModelScope.launch { repository.savePlannedRoute(PlannedRoute(UUID.randomUUID().toString(), name.trim(), targetDistanceMeters, points, System.currentTimeMillis())) }
+    }
+
+    fun deleteRoutePlan(id: String) = viewModelScope.launch { repository.deletePlannedRoute(id) }
+
+    fun createChallenge(title: String, metric: String, target: Double, ownerUid: String) {
+        if (title.isBlank() || target <= 0) return
+        val item = Challenge(UUID.randomUUID().toString(), title.trim(), metric, target, 0.0, System.currentTimeMillis() + 7L * 86_400_000L, ownerUid)
+        viewModelScope.launch {
+            repository.saveChallenge(item)
+            runCatching {
+                val document = firestore?.collection("challenges")?.document(item.id) ?: return@runCatching
+                document.set(mapOf("title" to item.title, "metric" to item.metric, "target" to item.target, "endsAtMillis" to item.endsAtMillis, "ownerUid" to ownerUid)).await()
+                document.collection("members").document(ownerUid).set(mapOf("displayName" to (FirebaseAuth.getInstance().currentUser?.displayName ?: "You"), "score" to 0.0)).await()
+            }
+        }
+    }
+
+    fun joinChallenge(challengeId: String) {
+        val user = FirebaseAuth.getInstance().currentUser ?: return
+        viewModelScope.launch { runCatching { firestore?.collection("challenges")?.document(challengeId)?.collection("members")?.document(user.uid)?.set(mapOf("displayName" to (user.displayName ?: "Member"), "score" to 0.0))?.await() } }
+    }
+
+    fun deleteChallenge(id: String) = viewModelScope.launch { repository.deleteChallenge(id) }
+
+    private suspend fun syncChallengeScores(additionalDistanceMeters: Double) {
+        val user = FirebaseAuth.getInstance().currentUser ?: return
+        val totalKm = (workouts.value.sumOf { it.distanceMeters } + additionalDistanceMeters) / 1000.0
+        challenges.value.filter { it.endsAtMillis > System.currentTimeMillis() }.forEach { challenge ->
+            runCatching { firestore?.collection("challenges")?.document(challenge.id)?.collection("members")?.document(user.uid)?.set(mapOf("displayName" to (user.displayName ?: "Member"), "score" to totalKm))?.await() }
+        }
+    }
+
+    fun startSafetyShare() {
+        val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return
+        val token = UUID.randomUUID().toString().replace("-", "")
+        val expiresAt = System.currentTimeMillis() + 60L * 60_000L
+        val point = telemetry.value.route.lastOrNull()
+        viewModelScope.launch {
+            runCatching {
+                firestore?.collection("safetyShares")?.document(token)?.set(
+                    mapOf("ownerUid" to uid, "expiresAtMillis" to expiresAt, "active" to true, "latitude" to point?.latitude, "longitude" to point?.longitude, "updatedAtMillis" to System.currentTimeMillis()),
+                )?.await()
+            }.onSuccess { mutableSafetyShareUrl.value = "motionfuel://safety/$token" }
+        }
+    }
+
+    fun stopSafetyShare() {
+        val token = mutableSafetyShareUrl.value?.substringAfterLast('/') ?: return
+        viewModelScope.launch { runCatching { firestore?.collection("safetyShares")?.document(token)?.update("active", false)?.await() }; mutableSafetyShareUrl.value = null }
+    }
+
+    fun setSmartReminders(enabled: Boolean) {
+        viewModelScope.launch { settingsRepository.setSmartRemindersEnabled(enabled) }
+        SmartReminderWorker.schedule(getApplication(), enabled)
+    }
+
+    fun toggleAccessibleDisplay() = viewModelScope.launch { settingsRepository.setAccessibleDisplay(!settings.value.accessibleDisplay) }
+    fun toggleLanguage() = viewModelScope.launch { settingsRepository.setAppLanguage(if (settings.value.appLanguage == "en") "hi" else "en") }
+
     fun refreshHealthConnect() {
         viewModelScope.launch {
             mutableConnectedHealth.value = ConnectedHealthSnapshot(available = healthConnectManager.isAvailable(), status = "Syncing…")
@@ -445,6 +578,7 @@ class MotionFuelViewModel(application: Application) : AndroidViewModel(applicati
                     route = snapshot.route,
                 ),
             )
+            syncChallengeScores(snapshot.distanceMeters)
         }
     }
 

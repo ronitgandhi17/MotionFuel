@@ -108,3 +108,51 @@ interface MealPlanDao {
     @Query("DELETE FROM meal_plan_entries")
     suspend fun deleteAll()
 }
+
+@Dao
+interface RecipeDao {
+    @Query("SELECT * FROM recipes ORDER BY createdAtMillis DESC")
+    fun observeAll(): Flow<List<RecipeEntity>>
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(entry: RecipeEntity)
+    @Query("DELETE FROM recipes WHERE id = :id")
+    suspend fun deleteById(id: String)
+    @Query("DELETE FROM recipes")
+    suspend fun deleteAll()
+}
+
+@Dao
+interface PlannedWorkoutDao {
+    @Query("SELECT * FROM planned_workouts ORDER BY scheduledAtMillis ASC")
+    fun observeAll(): Flow<List<PlannedWorkoutEntity>>
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(entry: PlannedWorkoutEntity)
+    @Query("DELETE FROM planned_workouts WHERE id = :id")
+    suspend fun deleteById(id: String)
+    @Query("DELETE FROM planned_workouts")
+    suspend fun deleteAll()
+}
+
+@Dao
+interface PlannedRouteDao {
+    @Query("SELECT * FROM planned_routes ORDER BY createdAtMillis DESC")
+    fun observeAll(): Flow<List<PlannedRouteEntity>>
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(entry: PlannedRouteEntity)
+    @Query("DELETE FROM planned_routes WHERE id = :id")
+    suspend fun deleteById(id: String)
+    @Query("DELETE FROM planned_routes")
+    suspend fun deleteAll()
+}
+
+@Dao
+interface ChallengeDao {
+    @Query("SELECT * FROM challenges ORDER BY endsAtMillis ASC")
+    fun observeAll(): Flow<List<ChallengeEntity>>
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(entry: ChallengeEntity)
+    @Query("DELETE FROM challenges WHERE id = :id")
+    suspend fun deleteById(id: String)
+    @Query("DELETE FROM challenges")
+    suspend fun deleteAll()
+}
