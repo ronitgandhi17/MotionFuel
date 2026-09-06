@@ -42,6 +42,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.ronitgandhi.motionfuel.domain.model.UnitSystem
 import com.ronitgandhi.motionfuel.domain.model.WorkoutSummary
+import com.ronitgandhi.motionfuel.domain.algorithm.WellnessEngine
 import com.ronitgandhi.motionfuel.BuildConfig
 import com.ronitgandhi.motionfuel.share.ActivityShareImage
 import com.ronitgandhi.motionfuel.ui.components.RouteMap
@@ -67,6 +68,7 @@ fun ActivityDetailScreen(workout: WorkoutSummary, units: UnitSystem, darkTheme: 
     var confirmFullRouteShare by remember { mutableStateOf(false) }
     val imperial = units == UnitSystem.IMPERIAL
     val pace = workout.averagePaceSecPerKm?.let { if (imperial) it * 1.609344 else it }
+    val splits = remember(workout) { WellnessEngine.splits(workout) }
     val beginShare = {
         sharing = true
         shareError = null
@@ -146,6 +148,18 @@ fun ActivityDetailScreen(workout: WorkoutSummary, units: UnitSystem, darkTheme: 
                         DetailRow("Steps", workout.steps.toString())
                         DetailRow("Elevation gain", "${workout.elevationGainMeters.toInt()} m")
                         DetailRow("Dominant movement", workout.dominantActivity.name.lowercase().replaceFirstChar(Char::uppercase))
+                    }
+                }
+            }
+            if (splits.isNotEmpty()) {
+                item {
+                    Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp)) {
+                        Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Text("Kilometre splits", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                            splits.forEach { split ->
+                                DetailRow("Km ${split.kilometre}", "${formatPace(split.paceSecondsPerKm)} • ${if (split.elevationDeltaMeters >= 0) "+" else ""}${split.elevationDeltaMeters.toInt()} m")
+                            }
+                        }
                     }
                 }
             }

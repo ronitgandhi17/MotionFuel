@@ -1,6 +1,7 @@
 package com.ronitgandhi.motionfuel
 
 import android.Manifest
+import android.content.Intent
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -42,6 +43,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ronitgandhi.motionfuel.auth.AuthLifecycle
@@ -65,7 +67,11 @@ import com.ronitgandhi.motionfuel.ui.screens.ProfileScreen
 import com.ronitgandhi.motionfuel.ui.screens.TodayScreen
 import com.ronitgandhi.motionfuel.ui.screens.WorkoutScreen
 import com.ronitgandhi.motionfuel.ui.theme.MotionFuelTheme
+import com.ronitgandhi.motionfuel.share.DataExport
+import com.ronitgandhi.motionfuel.ui.screens.weeklyReportShareIntent
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -130,6 +136,7 @@ class MainActivity : ComponentActivity() {
                             onWeightChanged = authViewModel::updateCurrentWeight,
                             onUpdateProfile = authViewModel::updateProfile,
                             onSignOut = authViewModel::signOut,
+                            onDeleteAccount = authViewModel::deleteAccount,
                         )
                     }
                 }
@@ -155,6 +162,7 @@ private fun MotionFuelRoot(
     onWeightChanged: (Double) -> Unit,
     onUpdateProfile: (ProfileUpdate) -> Unit,
     onSignOut: () -> Unit,
+    onDeleteAccount: () -> Unit,
 ) {
     LaunchedEffect(profile.weightKg) { viewModel.setProfileWeight(profile.weightKg) }
     // Collects each offline-first data stream as lifecycle-aware Compose state.
@@ -171,6 +179,19 @@ private fun MotionFuelRoot(
     val insights by viewModel.insights.collectAsStateWithLifecycle()
     val foodResults by viewModel.foodResults.collectAsStateWithLifecycle()
     val foodSearchStatus by viewModel.foodSearchStatus.collectAsStateWithLifecycle()
+    val hydration by viewModel.hydration.collectAsStateWithLifecycle()
+    val allNutritionEntries by viewModel.allNutritionEntries.collectAsStateWithLifecycle()
+    val allWeightEntries by viewModel.allWeightEntries.collectAsStateWithLifecycle()
+    val allHydration by viewModel.allHydration.collectAsStateWithLifecycle()
+    val tomorrowMealPlan by viewModel.tomorrowMealPlan.collectAsStateWithLifecycle()
+    val adaptiveTarget by viewModel.adaptiveFuelTarget.collectAsStateWithLifecycle()
+    val recovery by viewModel.recoveryScore.collectAsStateWithLifecycle()
+    val personalRecords by viewModel.personalRecords.collectAsStateWithLifecycle()
+    val weeklyReport by viewModel.weeklyReport.collectAsStateWithLifecycle()
+    val goalProgress by viewModel.goalProgress.collectAsStateWithLifecycle()
+    val connectedHealth by viewModel.connectedHealth.collectAsStateWithLifecycle()
+    val wearableStatus by viewModel.wearableStatus.collectAsStateWithLifecycle()
+    val context = LocalContext.current
     // Keeps swipe gestures and bottom-navigation selection on the same five-page state.
     val pagerState = rememberPagerState(initialPage = MainTab.TODAY.ordinal, pageCount = { MainTab.entries.size })
     val navigationScope = rememberCoroutineScope()
@@ -190,6 +211,9 @@ private fun MotionFuelRoot(
         val locationGranted = grants[Manifest.permission.ACCESS_FINE_LOCATION] == true || grants[Manifest.permission.ACCESS_COARSE_LOCATION] == true
         if (locationGranted) pendingRealType?.let(viewModel::startReal)
         pendingRealType = null
+    }
+    val healthPermissionLauncher = rememberLauncherForActivityResult(viewModel.healthConnectManager.permissionContract()) { granted ->
+        viewModel.healthPermissionsResult(granted)
     }
 
     if (telemetry.status != WorkoutStatus.IDLE) {
@@ -244,6 +268,10 @@ private fun MotionFuelRoot(
                         weatherStatus = weatherStatus,
                         insights = insights,
                         settings = settings,
+                        adaptiveTarget = adaptiveTarget.copy(baselineKcal = profile.dailyCalorieGoalKcal, recommendedKcal = profile.dailyCalorieGoalKcal + adaptiveTarget.adjustmentKcal),
+                        goalProgress = goalProgress,
+                        recovery = recovery,
+                        onAddWater = viewModel::addWater,
                         onStartWorkout = { showStartDialog = true },
                         onRefreshWeather = viewModel::refreshWeather,
                         onOpenActivity = { navigationScope.launch { pagerState.animateScrollToPage(MainTab.ACTIVITY.ordinal) } },
@@ -254,6 +282,7 @@ private fun MotionFuelRoot(
                         settings = settings,
                         onStartWorkout = { showStartDialog = true },
                         onActivitySelected = { selectedWorkout = it },
+                        personalRecords = personalRecords,
                     )
                     MainTab.FOOD -> FoodScreen(
                         darkTheme = settings.darkTheme,
@@ -268,6 +297,11 @@ private fun MotionFuelRoot(
                         onAddSavedFood = viewModel::addSavedFood,
                         onDeleteNutritionEntry = viewModel::deleteNutritionEntry,
                         onDeleteSavedFood = viewModel::deleteSavedFood,
+                        tomorrowPlan = tomorrowMealPlan,
+                        onBarcode = viewModel::lookupBarcode,
+                        onPlanFood = viewModel::planSavedFood,
+                        onRemovePlannedFood = viewModel::removePlannedFood,
+                        onAddPlanToToday = viewModel::addTomorrowPlanToToday,
                         onRootPageChanged = { foodIsRootPage = it },
                     )
                     MainTab.PROGRESS -> ProgressScreen(
@@ -279,6 +313,12 @@ private fun MotionFuelRoot(
                             viewModel.addWeight(weight)
                             onWeightChanged(weight)
                         },
+                        recovery = recovery,
+                        goalProgress = goalProgress,
+                        weeklyReport = weeklyReport,
+                        settings = settings,
+                        onUpdateGoals = viewModel::updateWellnessGoals,
+                        onUpdateRecovery = viewModel::updateRecoveryInputs,
                     )
                     MainTab.PROFILE -> ProfileScreen(
                         profile = profile,
@@ -292,6 +332,24 @@ private fun MotionFuelRoot(
                         onUpdateProfile = onUpdateProfile,
                         onRootPageChanged = { profileIsRootPage = it },
                         onSignOut = onSignOut,
+                        connectedHealth = connectedHealth,
+                        wearableStatus = wearableStatus,
+                        onRequestHealthPermissions = { healthPermissionLauncher.launch(viewModel.healthConnectManager.permissions) },
+                        onRefreshHealth = viewModel::refreshHealthConnect,
+                        onWearableChanged = viewModel::setWearableSync,
+                        onExport = {
+                            navigationScope.launch {
+                                val intent = withContext(Dispatchers.IO) {
+                                    DataExport.createJsonShareIntent(context, workouts, allNutritionEntries, allWeightEntries, allHydration)
+                                }
+                                context.startActivity(Intent.createChooser(intent, "Export MotionFuel data"))
+                            }
+                        },
+                        onShareReport = { context.startActivity(Intent.createChooser(weeklyReportShareIntent(weeklyReport), "Share weekly report")) },
+                        onDeleteAccount = {
+                            viewModel.deleteAllLocalData()
+                            onDeleteAccount()
+                        },
                     )
                 }
             }

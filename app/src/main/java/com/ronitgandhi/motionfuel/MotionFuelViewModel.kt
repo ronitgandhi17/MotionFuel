@@ -7,6 +7,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.ronitgandhi.motionfuel.domain.algorithm.AdaptiveInsightEngine
 import com.ronitgandhi.motionfuel.domain.algorithm.FoodPhotoPolicy
+import com.ronitgandhi.motionfuel.domain.algorithm.WellnessEngine
 import com.ronitgandhi.motionfuel.domain.model.ActivityType
 import com.ronitgandhi.motionfuel.domain.model.DailyContext
 import com.ronitgandhi.motionfuel.domain.model.FoodSearchResult
@@ -22,6 +23,18 @@ import com.ronitgandhi.motionfuel.domain.model.WorkoutStatus
 import com.ronitgandhi.motionfuel.domain.model.WorkoutSummary
 import com.ronitgandhi.motionfuel.domain.model.WorkoutType
 import com.ronitgandhi.motionfuel.domain.model.WeightEntry
+import com.ronitgandhi.motionfuel.domain.model.AdaptiveFuelTarget
+import com.ronitgandhi.motionfuel.domain.model.ConnectedHealthSnapshot
+import com.ronitgandhi.motionfuel.domain.model.GoalProgress
+import com.ronitgandhi.motionfuel.domain.model.HydrationEntry
+import com.ronitgandhi.motionfuel.domain.model.MealPlanEntry
+import com.ronitgandhi.motionfuel.domain.model.PersonalRecords
+import com.ronitgandhi.motionfuel.domain.model.RecoveryScore
+import com.ronitgandhi.motionfuel.domain.model.WeeklyReport
+import com.ronitgandhi.motionfuel.domain.model.WellnessGoals
+import com.ronitgandhi.motionfuel.integration.HealthConnectManager
+import com.ronitgandhi.motionfuel.integration.WearableBridge
+import com.ronitgandhi.motionfuel.widget.MotionFuelWidgetProvider
 import com.ronitgandhi.motionfuel.service.DemoTracePlayer
 import com.ronitgandhi.motionfuel.service.WorkoutSessionController
 import com.ronitgandhi.motionfuel.service.WorkoutTrackingService
@@ -32,6 +45,8 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -42,8 +57,11 @@ class MotionFuelViewModel(application: Application) : AndroidViewModel(applicati
     private val api = app.apiClient
     private val insightEngine = AdaptiveInsightEngine()
     private val demoPlayer = DemoTracePlayer()
+    val healthConnectManager = HealthConnectManager(application)
+    private val wearableBridge = WearableBridge(application)
     private val todayRange = localDayRange()
     private val thirtyDaysAgo = todayRange.first - (29L * 86_400_000L)
+    private val tomorrowRange = todayRange.second to todayRange.second + 86_400_000L
     private var workoutStartedAtMillis = 0L
 
     val telemetry = WorkoutSessionController.telemetry
@@ -85,6 +103,30 @@ class MotionFuelViewModel(application: Application) : AndroidViewModel(applicati
         SharingStarted.WhileSubscribed(5_000),
         emptyList(),
     )
+    val hydration: StateFlow<List<HydrationEntry>> = repository.observeHydration(todayRange.first, todayRange.second).stateIn(
+        viewModelScope,
+        SharingStarted.WhileSubscribed(5_000),
+        emptyList(),
+    )
+    val allNutritionEntries: StateFlow<List<NutritionEntry>> = repository.observeAllNutritionEntries().stateIn(
+        viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList(),
+    )
+    val allWeightEntries: StateFlow<List<WeightEntry>> = repository.observeAllWeightEntries().stateIn(
+        viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList(),
+    )
+    val allHydration: StateFlow<List<HydrationEntry>> = repository.observeAllHydration().stateIn(
+        viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList(),
+    )
+    val tomorrowMealPlan: StateFlow<List<MealPlanEntry>> = repository.observeMealPlan(tomorrowRange.first, tomorrowRange.second).stateIn(
+        viewModelScope,
+        SharingStarted.WhileSubscribed(5_000),
+        emptyList(),
+    )
+
+    private val mutableConnectedHealth = MutableStateFlow(ConnectedHealthSnapshot())
+    val connectedHealth = mutableConnectedHealth.asStateFlow()
+    private val mutableWearableStatus = MutableStateFlow("Wearable sync is off")
+    val wearableStatus = mutableWearableStatus.asStateFlow()
 
     private val mutableWeather = MutableStateFlow(
         WeatherContext(temperatureC = 19.0, humidityPercent = 61, windSpeedKph = 13.0, isRaining = false, sourceAgeMinutes = 0),
@@ -97,6 +139,54 @@ class MotionFuelViewModel(application: Application) : AndroidViewModel(applicati
     val foodResults = mutableFoodResults.asStateFlow()
     private val mutableFoodSearchStatus = MutableStateFlow<String?>(null)
     val foodSearchStatus = mutableFoodSearchStatus.asStateFlow()
+
+    val personalRecords: StateFlow<PersonalRecords> = workouts.map(WellnessEngine::personalRecords).stateIn(
+        viewModelScope,
+        SharingStarted.WhileSubscribed(5_000),
+        PersonalRecords(),
+    )
+
+    val adaptiveFuelTarget: StateFlow<AdaptiveFuelTarget> = combine(
+        settings,
+        telemetry,
+        workouts,
+        mutableWeather,
+        mutableConnectedHealth,
+    ) { preferences, live, history, weather, health ->
+        val todayExercise = history.filter { it.startedAtMillis >= todayRange.first }.sumOf { it.caloriesKcal } + live.caloriesKcal
+        WellnessEngine.adaptiveTarget(
+            baselineKcal = 2_200,
+            exerciseCaloriesKcal = todayExercise + health.activeCaloriesKcal,
+            steps = maxOf(live.steps, health.stepsToday),
+            weather = weather,
+            recentWeightChangeKg = null,
+        ).copy(hydrationTargetMl = maxOf(preferences.wellnessGoals.dailyWaterTargetMl, WellnessEngine.adaptiveTarget(2_200, todayExercise, maxOf(live.steps, health.stepsToday), weather).hydrationTargetMl))
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), WellnessEngine.adaptiveTarget(2_200, 0.0, 0, null))
+
+    val recoveryScore: StateFlow<RecoveryScore> = combine(settings, mutableConnectedHealth, workouts) { preferences, health, history ->
+        val effective = health.copy(
+            sleepHours = health.sleepHours ?: preferences.manualSleepHours,
+            restingHeartRateBpm = health.restingHeartRateBpm ?: preferences.manualRestingHeartRateBpm,
+        )
+        WellnessEngine.recovery(effective, history)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), WellnessEngine.recovery(ConnectedHealthSnapshot(sleepHours = 7.5, restingHeartRateBpm = 68), emptyList()))
+
+    val weeklyReport: StateFlow<WeeklyReport> = combine(workouts, nutritionHistory, weightEntries, settings) { history, food, weights, preferences ->
+        WellnessEngine.weeklyReport(history, food, weights, preferences.wellnessGoals.weeklyWorkoutTarget)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), WellnessEngine.weeklyReport(emptyList(), emptyList(), emptyList(), 3))
+
+    val goalProgress: StateFlow<GoalProgress> = combine(workouts, telemetry, hydration, settings, mutableConnectedHealth) { history, live, water, preferences, health ->
+        val days = distinctActiveDays(history, 0..6)
+        GoalProgress(
+            workoutDays = days,
+            workoutTarget = preferences.wellnessGoals.weeklyWorkoutTarget,
+            stepsToday = maxOf(live.steps, health.stepsToday),
+            stepTarget = preferences.wellnessGoals.dailyStepTarget,
+            waterTodayMl = water.sumOf { it.amountMl },
+            waterTargetMl = adaptiveFuelTarget.value.hydrationTargetMl,
+            workoutStreakDays = WellnessEngine.personalRecords(history).currentWorkoutStreakDays,
+        )
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), GoalProgress(0, 3, 0, 10_000, 0, 2_500, 0))
 
     val insights: StateFlow<List<Insight>> = combine(
         telemetry,
@@ -137,6 +227,21 @@ class MotionFuelViewModel(application: Application) : AndroidViewModel(applicati
 
     init {
         refreshWeather()
+        mutableConnectedHealth.value = ConnectedHealthSnapshot(
+            available = healthConnectManager.isAvailable(),
+            status = if (healthConnectManager.isAvailable()) "Ready to connect" else "Health Connect is unavailable on this device",
+        )
+        viewModelScope.launch {
+            val saved = settingsRepository.settings.first()
+            if (saved.healthConnectEnabled) refreshHealthConnect()
+            if (saved.wearableSyncEnabled) setWearableSync(true)
+        }
+        viewModelScope.launch {
+            combine(adaptiveFuelTarget, nutritionTotals, goalProgress) { target, food, goals -> Triple(target, food, goals) }
+                .collect { (target, food, goals) ->
+                    MotionFuelWidgetProvider.publish(application, target.recommendedKcal - food.caloriesKcal.toInt(), goals.stepsToday, goals.waterTodayMl)
+                }
+        }
     }
 
     fun refreshWeather() {
@@ -168,6 +273,18 @@ class MotionFuelViewModel(application: Application) : AndroidViewModel(applicati
                     mutableFoodResults.value = sampleFoods().filter { it.name.contains(query, ignoreCase = true) }
                     mutableFoodSearchStatus.value = "Offline • local examples"
                 }
+        }
+    }
+
+    fun lookupBarcode(barcode: String) {
+        viewModelScope.launch {
+            mutableFoodSearchStatus.value = "Looking up barcode $barcode…"
+            api.foodByBarcode(barcode)
+                .onSuccess {
+                    mutableFoodResults.value = listOf(it)
+                    mutableFoodSearchStatus.value = "Barcode match"
+                }
+                .onFailure { mutableFoodSearchStatus.value = it.localizedMessage ?: "No food matched this barcode." }
         }
     }
 
@@ -226,6 +343,60 @@ class MotionFuelViewModel(application: Application) : AndroidViewModel(applicati
         }
     }
 
+    fun addWater(amountMl: Int) {
+        if (amountMl !in 50..2_000) return
+        viewModelScope.launch { repository.saveHydration(HydrationEntry(UUID.randomUUID().toString(), amountMl, System.currentTimeMillis())) }
+    }
+
+    fun planSavedFood(food: SavedFood, mealType: MealType) {
+        viewModelScope.launch {
+            repository.saveMealPlan(
+                MealPlanEntry(UUID.randomUUID().toString(), tomorrowRange.first, mealType, food.id, food.name, food.caloriesKcal, food.proteinG, food.carbohydratesG, food.fatG),
+            )
+        }
+    }
+
+    fun removePlannedFood(entry: MealPlanEntry) = viewModelScope.launch { repository.deleteMealPlan(entry.id) }
+
+    fun addTomorrowPlanToToday() {
+        viewModelScope.launch {
+            tomorrowMealPlan.value.forEach { plan ->
+                repository.saveNutrition(
+                    NutritionEntry(UUID.randomUUID().toString(), plan.foodName, plan.caloriesKcal, plan.proteinG, plan.carbohydratesG, plan.fatG, plan.mealType, System.currentTimeMillis()),
+                )
+            }
+        }
+    }
+
+    fun updateWellnessGoals(goals: WellnessGoals) = viewModelScope.launch { settingsRepository.setWellnessGoals(goals) }
+    fun updateRecoveryInputs(sleepHours: Double, restingHeartRate: Int) = viewModelScope.launch { settingsRepository.setRecoveryInputs(sleepHours, restingHeartRate) }
+
+    fun refreshHealthConnect() {
+        viewModelScope.launch {
+            mutableConnectedHealth.value = ConnectedHealthSnapshot(available = healthConnectManager.isAvailable(), status = "Syncing…")
+            mutableConnectedHealth.value = runCatching { healthConnectManager.readToday() }
+                .getOrElse { ConnectedHealthSnapshot(available = healthConnectManager.isAvailable(), status = it.localizedMessage ?: "Health sync failed") }
+            settingsRepository.setHealthConnectEnabled(mutableConnectedHealth.value.permissionsGranted)
+        }
+    }
+
+    fun healthPermissionsResult(granted: Set<String>) {
+        viewModelScope.launch {
+            settingsRepository.setHealthConnectEnabled(granted.containsAll(healthConnectManager.permissions))
+            refreshHealthConnect()
+        }
+    }
+
+    fun setWearableSync(enabled: Boolean) {
+        viewModelScope.launch {
+            settingsRepository.setWearableSyncEnabled(enabled)
+            mutableWearableStatus.value = if (!enabled) "Wearable sync is off" else {
+                val count = wearableBridge.connectedNodeCount()
+                if (count > 0) "$count Wear OS device${if (count == 1) "" else "s"} connected" else "No paired Wear OS device found"
+            }
+        }
+    }
+
     // Stores a dated weight locally so Progress remains available offline.
     fun addWeight(weightKg: Double) {
         if (weightKg !in 30.0..350.0) return
@@ -240,6 +411,7 @@ class MotionFuelViewModel(application: Application) : AndroidViewModel(applicati
         mutableWeather.value = WeatherContext(temperatureC = 30.0, humidityPercent = 48, windSpeedKph = 11.0, isRaining = false)
         mutableWeatherStatus.value = "Assessor demo context • elevated heat"
         demoPlayer.start(viewModelScope, type, settings.value.weightKg)
+        sendWearableCommand("start:${type.name}")
     }
 
     fun startReal(type: WorkoutType) {
@@ -252,6 +424,7 @@ class MotionFuelViewModel(application: Application) : AndroidViewModel(applicati
             putExtra(WorkoutTrackingService.EXTRA_WEIGHT_KG, settings.value.weightKg)
         }
         ContextCompat.startForegroundService(getApplication(), intent)
+        sendWearableCommand("start:${type.name}")
     }
 
     fun pauseOrResumeWorkout() {
@@ -262,6 +435,7 @@ class MotionFuelViewModel(application: Application) : AndroidViewModel(applicati
             val action = if (current.status == WorkoutStatus.PAUSED) WorkoutTrackingService.ACTION_RESUME else WorkoutTrackingService.ACTION_PAUSE
             getApplication<Application>().startService(Intent(getApplication(), WorkoutTrackingService::class.java).setAction(action))
         }
+        sendWearableCommand(if (current.status == WorkoutStatus.PAUSED) "resume" else "pause")
     }
 
     fun finishWorkout() {
@@ -290,6 +464,7 @@ class MotionFuelViewModel(application: Application) : AndroidViewModel(applicati
                 ),
             )
         }
+        sendWearableCommand("finish")
     }
 
     fun dismissCompletedWorkout() {
@@ -327,6 +502,11 @@ class MotionFuelViewModel(application: Application) : AndroidViewModel(applicati
                 consumedAtMillis = consumedAtMillis,
             ),
         )
+    }
+
+    private fun sendWearableCommand(command: String) {
+        if (!settings.value.wearableSyncEnabled) return
+        viewModelScope.launch { wearableBridge.sendWorkoutCommand(command) }
     }
 
     private fun distinctActiveDays(history: List<WorkoutSummary>, daysAgo: IntRange): Int {

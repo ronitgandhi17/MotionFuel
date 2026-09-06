@@ -32,6 +32,8 @@ import androidx.compose.material.icons.rounded.PhotoLibrary
 import androidx.compose.material.icons.rounded.Restaurant
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Share
+import androidx.compose.material.icons.rounded.QrCodeScanner
+import androidx.compose.material.icons.rounded.Event
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -72,6 +74,8 @@ import com.ronitgandhi.motionfuel.domain.model.NutritionEntry
 import com.ronitgandhi.motionfuel.domain.model.NutritionTotals
 import com.ronitgandhi.motionfuel.domain.model.MealType
 import com.ronitgandhi.motionfuel.domain.model.SavedFood
+import com.ronitgandhi.motionfuel.domain.model.MealPlanEntry
+import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
 import com.ronitgandhi.motionfuel.share.FoodShareImage
 import com.ronitgandhi.motionfuel.ui.components.MacroProgress
 import com.ronitgandhi.motionfuel.ui.theme.FuelGreen
@@ -97,6 +101,11 @@ fun FoodScreen(
     onAddSavedFood: (SavedFood, MealType) -> Unit,
     onDeleteNutritionEntry: (NutritionEntry) -> Unit,
     onDeleteSavedFood: (SavedFood) -> Unit,
+    tomorrowPlan: List<MealPlanEntry>,
+    onBarcode: (String) -> Unit,
+    onPlanFood: (SavedFood, MealType) -> Unit,
+    onRemovePlannedFood: (MealPlanEntry) -> Unit,
+    onAddPlanToToday: () -> Unit,
     onRootPageChanged: (Boolean) -> Unit,
 ) {
     val context = LocalContext.current
@@ -108,6 +117,7 @@ fun FoodScreen(
     var pendingAddFood by remember { mutableStateOf<SavedFood?>(null) }
     var pendingDeleteFood by remember { mutableStateOf<SavedFood?>(null) }
     var pendingDeleteEntry by remember { mutableStateOf<NutritionEntry?>(null) }
+    var pendingPlanFood by remember { mutableStateOf<SavedFood?>(null) }
     var sharingFood by remember { mutableStateOf(false) }
     var foodShareError by remember { mutableStateOf<String?>(null) }
     var selectedPhotoUri by remember { mutableStateOf<String?>(null) }
@@ -128,6 +138,7 @@ fun FoodScreen(
             selectedPhotoUri = it.toString()
         }
     }
+    val barcodeScanner = remember(context) { GmsBarcodeScanning.getClient(context) }
 
     selectedSavedFood?.let { food ->
         SavedFoodDetailScreen(
@@ -208,6 +219,17 @@ fun FoodScreen(
                 Button(onClick = { onSearch(query) }, modifier = Modifier.height(56.dp)) { Text("Find") }
             }
             searchStatus?.let { Text(it, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            OutlinedButton(
+                onClick = {
+                    barcodeScanner.startScan()
+                        .addOnSuccessListener { barcode -> barcode.rawValue?.let(onBarcode) }
+                },
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Icon(Icons.Rounded.QrCodeScanner, contentDescription = null)
+                Spacer(Modifier.size(8.dp))
+                Text("Scan packaged-food barcode")
+            }
         }
         item {
             Text("Add to", style = MaterialTheme.typography.labelLarge)
@@ -235,7 +257,24 @@ fun FoodScreen(
                     onAdd = { onAddSavedFood(food, selectedMeal) },
                     onRequestAdd = { pendingAddFood = food },
                     onRequestDelete = { pendingDeleteFood = food },
+                    onPlan = { pendingPlanFood = food },
                 )
+            }
+        }
+        item {
+            Text("Tomorrow's meal plan", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            if (tomorrowPlan.isEmpty()) Text("Use the calendar button on a saved food to plan it.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            else {
+                tomorrowPlan.forEach { plan ->
+                    Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text(plan.foodName, fontWeight = FontWeight.SemiBold)
+                            Text("${plan.mealType.name.lowercase().replaceFirstChar(Char::uppercase)} • ${plan.caloriesKcal.toInt()} kcal", style = MaterialTheme.typography.bodySmall)
+                        }
+                        IconButton(onClick = { onRemovePlannedFood(plan) }) { Icon(Icons.Rounded.Delete, contentDescription = "Remove planned food") }
+                    }
+                }
+                Button(onClick = onAddPlanToToday, modifier = Modifier.fillMaxWidth()) { Text("Copy plan to today's diary") }
             }
         }
         item {
@@ -315,6 +354,12 @@ fun FoodScreen(
             dismissButton = { TextButton(onClick = { pendingDeleteFood = null }) { Text("Cancel") } },
         )
     }
+    pendingPlanFood?.let { food ->
+        PlanFoodDialog(food, { pendingPlanFood = null }) { meal ->
+            onPlanFood(food, meal)
+            pendingPlanFood = null
+        }
+    }
     pendingDeleteEntry?.let { entry ->
         AlertDialog(
             onDismissRequest = { pendingDeleteEntry = null },
@@ -368,7 +413,7 @@ private fun DiaryFoodRow(entry: NutritionEntry, onRequestDelete: () -> Unit) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun SavedFoodCard(food: SavedFood, onOpen: () -> Unit, onAdd: () -> Unit, onRequestAdd: () -> Unit, onRequestDelete: () -> Unit) {
+private fun SavedFoodCard(food: SavedFood, onOpen: () -> Unit, onAdd: () -> Unit, onRequestAdd: () -> Unit, onRequestDelete: () -> Unit, onPlan: () -> Unit) {
     val dismissState = rememberSwipeToDismissBoxState(
         confirmValueChange = { value ->
             when (value) {
@@ -417,10 +462,30 @@ private fun SavedFoodCard(food: SavedFood, onOpen: () -> Unit, onAdd: () -> Unit
                 Text(food.name, fontWeight = FontWeight.Bold)
                 Text("${food.caloriesKcal.toInt()} kcal • ${food.proteinG.toInt()} g protein", style = MaterialTheme.typography.bodySmall)
             }
+            IconButton(onClick = onPlan) { Icon(Icons.Rounded.Event, contentDescription = "Plan ${food.name} for tomorrow") }
             IconButton(onClick = onAdd) { Icon(Icons.Rounded.Add, contentDescription = "Add ${food.name} to diary") }
             }
         }
     }
+}
+
+@Composable
+private fun PlanFoodDialog(food: SavedFood, onDismiss: () -> Unit, onPlan: (MealType) -> Unit) {
+    var meal by remember(food.id) { mutableStateOf(MealType.BREAKFAST) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Plan ${food.name}") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Choose tomorrow's meal.")
+                MealType.entries.forEach { option ->
+                    FilterChip(selected = meal == option, onClick = { meal = option }, label = { Text(option.name.lowercase().replaceFirstChar(Char::uppercase)) })
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = { onPlan(meal) }) { Text("Plan for tomorrow") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+    )
 }
 
 @Composable

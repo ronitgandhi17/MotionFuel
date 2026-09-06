@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">MotionFuel</string>
+    <string name="widget_description">Calories, steps and hydration at a glance</string>
 </resources>

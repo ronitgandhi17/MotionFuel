@@ -1,6 +1,6 @@
 # MotionFuel Test and Security Assessment
 
-**Assessment date:** 3 September 2026  
+**Assessment date:** 6 September 2026
 **Branch:** `codex/firebase-motionfuel-update`  
 **Scope:** Android client, local persistence, Firebase Authentication/Firestore/Storage configuration, Google Maps configuration, activity sharing, build configuration, and direct dependencies.
 
@@ -10,7 +10,7 @@ MotionFuel's original 10 JVM unit tests and debug assembly passed in GitHub Acti
 
 The application's baseline Android controls are good: cleartext traffic and backups are disabled, the workout service and `FileProvider` are not exported, the provider exposes only dedicated private directories, Firestore and Storage have global default-deny rules, and no live credentials were found in tracked source. No critical cross-user data-access flaw was identified through static analysis.
 
-The recommended source/configuration remediations have been implemented: mandatory verified-email gating, build-variant App Check providers, Firestore/Storage rules and Emulator tests, corrected backup exclusions, non-finite input handling, private notifications, route-share confirmation and cache expiry. Profile images are compressed before upload to a fixed owner path with content-type and size checks. Firebase Console enforcement, Maps key restrictions and signed physical-device testing remain deployment-owner actions.
+The recommended source/configuration remediations have been implemented: mandatory verified-email gating, build-variant App Check providers, Firestore/Storage rules and Emulator tests, corrected backup exclusions, non-finite input handling, private notifications, route-share confirmation and cache expiry. Profile images are compressed before upload to a fixed owner path with content-type and size checks. The connected-wellness revision keeps Health Connect read-only, uses a permissionless system barcode scanner, stores widget state privately, exports through a narrow FileProvider path, and requires a recent login before account data is mutated for deletion. Firebase Console enforcement, Maps key restrictions and signed physical-device testing remain deployment-owner actions.
 
 ## Remediation status
 
@@ -36,8 +36,8 @@ The recommended source/configuration remediations have been implemented: mandato
 |---|---:|---|
 | Original JVM unit suite | 10 passed | GitHub Actions run on the same application source completed successfully. |
 | Expanded JVM boundary/security suite | 44 passed, 1 failed | GitHub Actions run `33674275981`; failure is `GpsFilterBoundaryTest.invalidAccuracyValuesAreRejected`. |
-| Current Android/JVM regression suite | 65 declared | Includes static profile-photo picker, bounded upload and Storage-rule invariants. |
-| Firebase Security Rules suite | 8 declared | Emulator tests cover Firestore ownership/schema and Storage owner, cross-user, unauthenticated, content-type and path controls. |
+| Current Android/JVM regression suite | 79 declared | Adds adaptive-goal, hydration, recovery, split, record, weekly-report, migration, widget, export, Health Connect, barcode, Wear OS and deletion-guard coverage. |
+| Firebase Security Rules suite | 10 declared | Emulator tests cover Firestore ownership/schema/deletion and Storage owner, cross-user, unauthenticated, content-type, path and deletion controls. |
 | Production Kotlin compilation | Passed | Expanded run compiled debug production and test Kotlin before executing tests. |
 | Debug APK assembly | Passed previously | Passed on the application source before the test-only changes. The expanded run stopped at the failing test before packaging. |
 | Release assembly and Android lint | Configured, not executed | Added to the local workflow; not claimed as passed. |
@@ -56,6 +56,7 @@ The expanded suite exercises:
 - Sensor classification, confidence bounds, stabilizer hysteresis, and adaptive insight rules.
 - Maintenance-calorie and energy-estimation boundaries.
 - Manifest, network-security, `FileProvider`, Firestore/Storage ownership and default-deny, and source-secret invariants.
+- Connected wellness algorithms, platform integration declarations, Room v5 migration, private widget/export paths and recent-login deletion ordering.
 
 There are no Compose UI tests or Android instrumentation tests in the project yet.
 

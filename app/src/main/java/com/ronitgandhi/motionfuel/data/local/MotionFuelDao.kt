@@ -20,6 +20,9 @@ interface WorkoutDao {
 
 @Dao
 interface NutritionDao {
+    @Query("SELECT * FROM nutrition_entries ORDER BY consumedAtMillis DESC")
+    fun observeAll(): Flow<List<NutritionEntryEntity>>
+
     @Query("SELECT * FROM nutrition_entries WHERE consumedAtMillis >= :start AND consumedAtMillis < :end ORDER BY consumedAtMillis DESC")
     fun observeBetween(start: Long, end: Long): Flow<List<NutritionEntryEntity>>
 
@@ -48,6 +51,9 @@ interface NutritionDao {
 
 @Dao
 interface WeightDao {
+    @Query("SELECT * FROM weight_entries ORDER BY recordedAtMillis ASC")
+    fun observeAll(): Flow<List<WeightEntryEntity>>
+
     @Query("SELECT * FROM weight_entries WHERE recordedAtMillis >= :start ORDER BY recordedAtMillis ASC")
     fun observeSince(start: Long): Flow<List<WeightEntryEntity>>
 
@@ -70,5 +76,35 @@ interface SavedFoodDao {
     suspend fun deleteById(id: String)
 
     @Query("DELETE FROM saved_foods")
+    suspend fun deleteAll()
+}
+
+@Dao
+interface HydrationDao {
+    @Query("SELECT * FROM hydration_entries ORDER BY consumedAtMillis DESC")
+    fun observeAll(): Flow<List<HydrationEntryEntity>>
+
+    @Query("SELECT * FROM hydration_entries WHERE consumedAtMillis >= :start AND consumedAtMillis < :end ORDER BY consumedAtMillis DESC")
+    fun observeBetween(start: Long, end: Long): Flow<List<HydrationEntryEntity>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(entry: HydrationEntryEntity)
+
+    @Query("DELETE FROM hydration_entries")
+    suspend fun deleteAll()
+}
+
+@Dao
+interface MealPlanDao {
+    @Query("SELECT * FROM meal_plan_entries WHERE scheduledDayStartMillis >= :start AND scheduledDayStartMillis < :end ORDER BY mealType, foodName")
+    fun observeBetween(start: Long, end: Long): Flow<List<MealPlanEntryEntity>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(entry: MealPlanEntryEntity)
+
+    @Query("DELETE FROM meal_plan_entries WHERE id = :id")
+    suspend fun deleteById(id: String)
+
+    @Query("DELETE FROM meal_plan_entries")
     suspend fun deleteAll()
 }

@@ -53,6 +53,27 @@ class ContextApiClient {
         }
     }
 
+    suspend fun foodByBarcode(barcode: String): Result<FoodSearchResult> = withContext(Dispatchers.IO) {
+        runCatching {
+            require(barcode.matches(Regex("[0-9]{8,14}"))) { "The scanned barcode is not a supported food code." }
+            val root = JSONObject(get("https://world.openfoodfacts.org/api/v2/product/$barcode.json?fields=code,product_name,brands,serving_size,nutriments"))
+            require(root.optInt("status") == 1) { "No nutrition record was found for this barcode." }
+            val product = root.getJSONObject("product")
+            val nutrients = product.optJSONObject("nutriments") ?: JSONObject()
+            val name = product.optString("product_name").takeIf { it.isNotBlank() } ?: "Scanned food"
+            FoodSearchResult(
+                providerId = product.optString("code", barcode),
+                name = name,
+                brand = product.optString("brands").takeIf { it.isNotBlank() },
+                servingLabel = product.optString("serving_size").takeIf { it.isNotBlank() } ?: "100 g",
+                caloriesKcal = nutrients.optDouble("energy-kcal_100g", 0.0),
+                proteinG = nutrients.optDouble("proteins_100g", 0.0),
+                carbohydratesG = nutrients.optDouble("carbohydrates_100g", 0.0),
+                fatG = nutrients.optDouble("fat_100g", 0.0),
+            )
+        }
+    }
+
     private fun get(url: String): String {
         val connection = URI(url).toURL().openConnection() as HttpURLConnection
         return try {

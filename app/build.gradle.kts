@@ -26,8 +26,8 @@ android {
         applicationId = "com.ronitgandhi.motionfuel"
         minSdk = 29
         targetSdk = 36
-        versionCode = 2
-        versionName = "0.2.0"
+        versionCode = 3
+        versionName = "0.3.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         manifestPlaceholders["MAPS_API_KEY"] = mapsApiKey
@@ -95,6 +95,9 @@ dependencies {
     implementation("androidx.room:room-ktx:2.7.2")
     ksp("androidx.room:room-compiler:2.7.2")
     implementation("androidx.datastore:datastore-preferences:1.1.7")
+    implementation("androidx.health.connect:connect-client:1.1.0")
+    implementation("com.google.android.gms:play-services-code-scanner:16.1.0")
+    implementation("com.google.android.gms:play-services-wearable:19.0.0")
 
     // Keeps Firebase Authentication and Firestore SDK versions mutually compatible.
     implementation(platform("com.google.firebase:firebase-bom:34.18.0"))

@@ -2,6 +2,18 @@
 
 | Area | Status | Evidence |
 | --- | --- | --- |
+| Adaptive daily fuel | Implemented | Guardrailed pure-Kotlin engine combines exercise energy, steps, weather and context with visible reasons |
+| Health Connect | Implemented; device permission required | Optional read-only steps, active energy, weight, sleep and heart-rate import with manual fallback |
+| Barcode food scan | Implemented; Google Play Services required | Permissionless scanner UI and Open Food Facts barcode endpoint |
+| Workout splits/records | Implemented | Kilometre split calculation, route elevation delta, distance/duration/pace/step records and streaks |
+| Hydration | Implemented locally | Room v5 table, Today quick-add, adaptive target and widget publication |
+| Recovery readiness | Implemented | Bounded score, explainable factors, Health Connect inputs and editable manual fallbacks |
+| Meal planning | Implemented locally | Tomorrow plan table, saved-food planning, removal and copy-to-today |
+| Goals/achievements | Implemented | Editable active-day, step and water targets with streaks and milestone labels |
+| Android widget | Implemented | Private-state calories/steps/water RemoteViews widget |
+| Wear OS bridge | Implemented; paired watch required | Opt-in node discovery and start/pause/resume/finish message mirroring |
+| Export/account deletion | Implemented | Complete local JSON export; confirmed deletion with recent-login guard and owned-cloud cleanup |
+| Weekly report | Implemented | Seven-day consistency/workout/nutrition/weight summary and Android text sharing |
 | Firebase account flow | Implemented; project configuration required | Login, signup, password reset, mandatory verification gate, resend/refresh and session listener |
 | Firebase App Check | Implemented in client; console enforcement required | Debug provider by debug variant and Play Integrity provider by release variant |
 | TDEE onboarding | Implemented | Multi-step profile fields and pure Mifflin–St Jeor use case |
