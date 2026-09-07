@@ -80,3 +80,43 @@ data class MealPlanEntryEntity(
     val carbohydratesG: Double,
     val fatG: Double,
 )
+
+@Entity(tableName = "recipes")
+data class RecipeEntity(
+    @PrimaryKey val id: String,
+    val name: String,
+    val ingredientsJson: String,
+    val servings: Double,
+    val createdAtMillis: Long,
+)
+
+@Entity(tableName = "planned_workouts")
+data class PlannedWorkoutEntity(
+    @PrimaryKey val id: String,
+    val type: String,
+    val scheduledAtMillis: Long,
+    val targetDistanceMeters: Double,
+    val targetDurationMinutes: Int,
+    val completed: Boolean,
+)
+
+@Entity(tableName = "planned_routes")
+data class PlannedRouteEntity(
+    @PrimaryKey val id: String,
+    val name: String,
+    val targetDistanceMeters: Double,
+    val routeJson: String,
+    val createdAtMillis: Long,
+    val availableOffline: Boolean,
+)
+
+@Entity(tableName = "challenges")
+data class ChallengeEntity(
+    @PrimaryKey val id: String,
+    val title: String,
+    val metric: String,
+    val target: Double,
+    val progress: Double,
+    val endsAtMillis: Long,
+    val ownerUid: String,
+)

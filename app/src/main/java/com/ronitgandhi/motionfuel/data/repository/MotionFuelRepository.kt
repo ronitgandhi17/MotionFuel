@@ -12,6 +12,14 @@ import com.ronitgandhi.motionfuel.data.local.HydrationDao
 import com.ronitgandhi.motionfuel.data.local.HydrationEntryEntity
 import com.ronitgandhi.motionfuel.data.local.MealPlanDao
 import com.ronitgandhi.motionfuel.data.local.MealPlanEntryEntity
+import com.ronitgandhi.motionfuel.data.local.RecipeDao
+import com.ronitgandhi.motionfuel.data.local.RecipeEntity
+import com.ronitgandhi.motionfuel.data.local.PlannedWorkoutDao
+import com.ronitgandhi.motionfuel.data.local.PlannedWorkoutEntity
+import com.ronitgandhi.motionfuel.data.local.PlannedRouteDao
+import com.ronitgandhi.motionfuel.data.local.PlannedRouteEntity
+import com.ronitgandhi.motionfuel.data.local.ChallengeDao
+import com.ronitgandhi.motionfuel.data.local.ChallengeEntity
 import com.ronitgandhi.motionfuel.domain.model.ActivityType
 import com.ronitgandhi.motionfuel.domain.model.GeoPoint
 import com.ronitgandhi.motionfuel.domain.model.MealType
@@ -23,6 +31,11 @@ import com.ronitgandhi.motionfuel.domain.model.WorkoutType
 import com.ronitgandhi.motionfuel.domain.model.WeightEntry
 import com.ronitgandhi.motionfuel.domain.model.HydrationEntry
 import com.ronitgandhi.motionfuel.domain.model.MealPlanEntry
+import com.ronitgandhi.motionfuel.domain.model.Recipe
+import com.ronitgandhi.motionfuel.domain.model.RecipeIngredient
+import com.ronitgandhi.motionfuel.domain.model.PlannedWorkout
+import com.ronitgandhi.motionfuel.domain.model.PlannedRoute
+import com.ronitgandhi.motionfuel.domain.model.Challenge
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import org.json.JSONArray
@@ -35,6 +48,10 @@ class MotionFuelRepository(
     private val savedFoodDao: SavedFoodDao,
     private val hydrationDao: HydrationDao,
     private val mealPlanDao: MealPlanDao,
+    private val recipeDao: RecipeDao,
+    private val plannedWorkoutDao: PlannedWorkoutDao,
+    private val plannedRouteDao: PlannedRouteDao,
+    private val challengeDao: ChallengeDao,
 ) {
     fun observeWorkouts(): Flow<List<WorkoutSummary>> = workoutDao.observeAll().map { rows -> rows.map(::toDomain) }
 
@@ -65,6 +82,11 @@ class MotionFuelRepository(
 
     fun observeMealPlan(start: Long, end: Long): Flow<List<MealPlanEntry>> =
         mealPlanDao.observeBetween(start, end).map { rows -> rows.map(::toDomain) }
+
+    fun observeRecipes(): Flow<List<Recipe>> = recipeDao.observeAll().map { rows -> rows.map(::toDomain) }
+    fun observePlannedWorkouts(): Flow<List<PlannedWorkout>> = plannedWorkoutDao.observeAll().map { rows -> rows.map(::toDomain) }
+    fun observePlannedRoutes(): Flow<List<PlannedRoute>> = plannedRouteDao.observeAll().map { rows -> rows.map(::toDomain) }
+    fun observeChallenges(): Flow<List<Challenge>> = challengeDao.observeAll().map { rows -> rows.map(::toDomain) }
 
     suspend fun saveWorkout(workout: WorkoutSummary) = workoutDao.upsert(
         WorkoutEntity(
@@ -117,6 +139,15 @@ class MotionFuelRepository(
 
     suspend fun deleteMealPlan(id: String) = mealPlanDao.deleteById(id)
 
+    suspend fun saveRecipe(recipe: Recipe) = recipeDao.upsert(RecipeEntity(recipe.id, recipe.name, encodeIngredients(recipe.ingredients), recipe.servings, recipe.createdAtMillis))
+    suspend fun deleteRecipe(id: String) = recipeDao.deleteById(id)
+    suspend fun savePlannedWorkout(item: PlannedWorkout) = plannedWorkoutDao.upsert(PlannedWorkoutEntity(item.id, item.type.name, item.scheduledAtMillis, item.targetDistanceMeters, item.targetDurationMinutes, item.completed))
+    suspend fun deletePlannedWorkout(id: String) = plannedWorkoutDao.deleteById(id)
+    suspend fun savePlannedRoute(item: PlannedRoute) = plannedRouteDao.upsert(PlannedRouteEntity(item.id, item.name, item.targetDistanceMeters, encodeRoute(item.points), item.createdAtMillis, item.availableOffline))
+    suspend fun deletePlannedRoute(id: String) = plannedRouteDao.deleteById(id)
+    suspend fun saveChallenge(item: Challenge) = challengeDao.upsert(ChallengeEntity(item.id, item.title, item.metric, item.target, item.progress, item.endsAtMillis, item.ownerUid))
+    suspend fun deleteChallenge(id: String) = challengeDao.deleteById(id)
+
     suspend fun deleteAllLocalData() {
         workoutDao.deleteAll()
         nutritionDao.deleteAll()
@@ -124,6 +155,10 @@ class MotionFuelRepository(
         savedFoodDao.deleteAll()
         hydrationDao.deleteAll()
         mealPlanDao.deleteAll()
+        recipeDao.deleteAll()
+        plannedWorkoutDao.deleteAll()
+        plannedRouteDao.deleteAll()
+        challengeDao.deleteAll()
     }
 
     private fun toDomain(entity: WorkoutEntity) = WorkoutSummary(
@@ -175,6 +210,25 @@ class MotionFuelRepository(
         entity.carbohydratesG,
         entity.fatG,
     )
+
+    private fun toDomain(entity: RecipeEntity) = Recipe(entity.id, entity.name, decodeIngredients(entity.ingredientsJson), entity.servings, entity.createdAtMillis)
+    private fun toDomain(entity: PlannedWorkoutEntity) = PlannedWorkout(entity.id, enumValueOrDefault(entity.type, WorkoutType.WALK), entity.scheduledAtMillis, entity.targetDistanceMeters, entity.targetDurationMinutes, entity.completed)
+    private fun toDomain(entity: PlannedRouteEntity) = PlannedRoute(entity.id, entity.name, entity.targetDistanceMeters, decodeRoute(entity.routeJson), entity.createdAtMillis, entity.availableOffline)
+    private fun toDomain(entity: ChallengeEntity) = Challenge(entity.id, entity.title, entity.metric, entity.target, entity.progress, entity.endsAtMillis, entity.ownerUid)
+
+    private fun encodeIngredients(items: List<RecipeIngredient>): String = JSONArray().apply {
+        items.forEach { item -> put(JSONObject().apply {
+            put("name", item.name); put("servings", item.servings); put("calories", item.caloriesKcal)
+            put("protein", item.proteinG); put("carbs", item.carbohydratesG); put("fat", item.fatG)
+        }) }
+    }.toString()
+
+    private fun decodeIngredients(json: String): List<RecipeIngredient> = runCatching {
+        val array = JSONArray(json)
+        List(array.length()) { index -> array.getJSONObject(index).let {
+            RecipeIngredient(it.getString("name"), it.optDouble("servings", 1.0), it.optDouble("calories"), it.optDouble("protein"), it.optDouble("carbs"), it.optDouble("fat"))
+        } }
+    }.getOrDefault(emptyList())
 
     private fun encodeRoute(route: List<GeoPoint>): String = JSONArray().apply {
         route.forEach { point ->

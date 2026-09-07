@@ -3,6 +3,7 @@
     <cache-path name="shared_activities" path="shared_activities/" />
     <cache-path name="shared_foods" path="shared_foods/" />
     <cache-path name="profile_photos" path="profile_photos/" />
+    <cache-path name="label_scans" path="label_scans/" />
     <cache-path name="data_exports" path="exports/" />
     <files-path name="food_photos" path="food_photos/" />
 </paths>

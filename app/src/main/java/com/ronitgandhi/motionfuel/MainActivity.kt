@@ -9,6 +9,8 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.setContent
+import androidx.appcompat.app.AppCompatDelegate
+import androidx.core.os.LocaleListCompat
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -61,6 +63,8 @@ import com.ronitgandhi.motionfuel.ui.screens.FirebaseAuthScreen
 import com.ronitgandhi.motionfuel.ui.screens.FirebaseConfigurationRequiredScreen
 import com.ronitgandhi.motionfuel.ui.screens.EmailVerificationRequiredScreen
 import com.ronitgandhi.motionfuel.ui.screens.FoodScreen
+import com.ronitgandhi.motionfuel.ui.screens.ExpansionHubScreen
+import com.ronitgandhi.motionfuel.ui.screens.SafetyViewerScreen
 import com.ronitgandhi.motionfuel.ui.screens.ProgressScreen
 import com.ronitgandhi.motionfuel.ui.screens.ProfileIncompleteScreen
 import com.ronitgandhi.motionfuel.ui.screens.ProfileScreen
@@ -78,6 +82,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
+            var safetyToken by remember { mutableStateOf(intent?.data?.takeIf { it.scheme == "motionfuel" && it.host == "safety" }?.pathSegments?.firstOrNull()) }
             val systemDarkTheme = isSystemInDarkTheme()
             // Gates every dashboard route behind the current Firebase authentication state.
             val authViewModel: FirebaseAuthViewModel = viewModel()
@@ -127,8 +132,11 @@ class MainActivity : ComponentActivity() {
                     // Creates app state only after Firebase confirms a signed-in user profile.
                     val motionFuelViewModel: MotionFuelViewModel = viewModel()
                     val settings by motionFuelViewModel.settings.collectAsStateWithLifecycle()
-                    MotionFuelTheme(darkTheme = settings.darkTheme) {
-                        MotionFuelRoot(
+                    LaunchedEffect(settings.appLanguage) {
+                        AppCompatDelegate.setApplicationLocales(LocaleListCompat.forLanguageTags(settings.appLanguage))
+                    }
+                    MotionFuelTheme(darkTheme = settings.darkTheme, accessibleDisplay = settings.accessibleDisplay) {
+                        if (safetyToken != null) SafetyViewerScreen(requireNotNull(safetyToken), onBack = { safetyToken = null }) else MotionFuelRoot(
                             viewModel = motionFuelViewModel,
                             profile = requireNotNull(auth.profile),
                             profileBusy = auth.busy,
@@ -199,6 +207,7 @@ private fun MotionFuelRoot(
     var pendingRealType by remember { mutableStateOf<WorkoutType?>(null) }
     var foodIsRootPage by remember { mutableStateOf(true) }
     var profileIsRootPage by remember { mutableStateOf(true) }
+    var showExpansionHub by remember { mutableStateOf(false) }
     val rootSwipeEnabled = !showStartDialog && when (MainTab.entries[pagerState.currentPage]) {
         MainTab.FOOD -> foodIsRootPage
         MainTab.PROFILE -> profileIsRootPage
@@ -236,6 +245,8 @@ private fun MotionFuelRoot(
             darkTheme = settings.darkTheme,
             onBack = { selectedWorkout = null },
         )
+    } else if (showExpansionHub) {
+        ExpansionHubScreen(viewModel = viewModel, profile = profile, onBack = { showExpansionHub = false })
     } else {
         Scaffold(
             bottomBar = {
@@ -337,6 +348,7 @@ private fun MotionFuelRoot(
                             runCatching { context.startActivity(viewModel.healthConnectManager.setupIntent()) }
                         },
                         onRefreshHealth = viewModel::refreshHealthConnect,
+                        onOpenSmartPlanning = { showExpansionHub = true },
                         onExport = {
                             navigationScope.launch {
                                 val intent = withContext(Dispatchers.IO) {

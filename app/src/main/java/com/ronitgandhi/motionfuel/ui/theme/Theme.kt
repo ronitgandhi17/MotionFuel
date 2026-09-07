@@ -13,6 +13,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.unit.Density
 import androidx.core.view.WindowCompat
 
 val FuelGreen = Color(0xFF56E39F)
@@ -59,7 +62,7 @@ private val LightColors = lightColorScheme(
 )
 
 @Composable
-fun MotionFuelTheme(darkTheme: Boolean, content: @Composable () -> Unit) {
+fun MotionFuelTheme(darkTheme: Boolean, accessibleDisplay: Boolean = false, content: @Composable () -> Unit) {
     val view = LocalView.current
     if (!view.isInEditMode) {
         SideEffect {
@@ -70,10 +73,13 @@ fun MotionFuelTheme(darkTheme: Boolean, content: @Composable () -> Unit) {
             WindowCompat.getInsetsController(window, view).isAppearanceLightNavigationBars = !darkTheme
         }
     }
-    MaterialTheme(
-        colorScheme = if (darkTheme) DarkColors else LightColors,
-        typography = Typography(),
-    ) {
-        Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background, content = content)
+    val density = LocalDensity.current
+    CompositionLocalProvider(LocalDensity provides Density(density.density, if (accessibleDisplay) 1.18f else density.fontScale)) {
+        MaterialTheme(
+            colorScheme = if (darkTheme) DarkColors else LightColors,
+            typography = Typography(),
+        ) {
+            Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background, content = content)
+        }
     }
 }

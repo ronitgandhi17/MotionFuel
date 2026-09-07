@@ -38,6 +38,22 @@ service cloud.firestore {
         && data.recordedAt is timestamp;
     }
 
+    function verified() {
+      return request.auth != null && request.auth.token.email_verified == true;
+    }
+
+    function validSafetyShare(data) {
+      return data.keys().hasOnly(['ownerUid', 'expiresAtMillis', 'active', 'latitude', 'longitude', 'updatedAtMillis'])
+        && data.ownerUid == request.auth.uid
+        && data.expiresAtMillis is int
+        && data.expiresAtMillis > request.time.toMillis()
+        && data.expiresAtMillis <= request.time.toMillis() + 3600000
+        && data.active is bool
+        && data.updatedAtMillis is int
+        && (!('latitude' in data) || data.latitude == null || (data.latitude is number && data.latitude >= -90 && data.latitude <= 90))
+        && (!('longitude' in data) || data.longitude == null || (data.longitude is number && data.longitude >= -180 && data.longitude <= 180));
+    }
+
     match /users/{uid} {
       allow create: if signedInAs(uid)
         && validProfile(request.resource.data)
@@ -61,6 +77,38 @@ service cloud.firestore {
 
       match /{document=**} {
         allow read, write: if false;
+      }
+    }
+
+    match /safetyShares/{token} {
+      allow create: if verified() && validSafetyShare(request.resource.data);
+      allow read: if verified() && (resource.data.ownerUid == request.auth.uid
+        || (resource.data.active == true && resource.data.expiresAtMillis > request.time.toMillis()));
+      allow update: if verified() && resource.data.ownerUid == request.auth.uid
+        && request.resource.data.ownerUid == resource.data.ownerUid
+        && request.resource.data.expiresAtMillis == resource.data.expiresAtMillis
+        && validSafetyShare(request.resource.data);
+      allow delete: if verified() && resource.data.ownerUid == request.auth.uid;
+    }
+
+    match /challenges/{challengeId} {
+      allow read: if verified();
+      allow create: if verified()
+        && request.resource.data.keys().hasOnly(['title', 'metric', 'target', 'endsAtMillis', 'ownerUid'])
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.title is string && request.resource.data.title.size() >= 2 && request.resource.data.title.size() <= 100
+        && request.resource.data.metric in ['km', 'steps', 'days']
+        && request.resource.data.target is number && request.resource.data.target > 0 && request.resource.data.target <= 100000
+        && request.resource.data.endsAtMillis is int && request.resource.data.endsAtMillis > request.time.toMillis();
+      allow update, delete: if verified() && resource.data.ownerUid == request.auth.uid;
+
+      match /members/{uid} {
+        allow read: if verified();
+        allow create, update: if verifiedAs(uid)
+          && request.resource.data.keys().hasOnly(['displayName', 'score'])
+          && request.resource.data.displayName is string && request.resource.data.displayName.size() <= 100
+          && request.resource.data.score is number && request.resource.data.score >= 0 && request.resource.data.score <= 1000000;
+        allow delete: if verifiedAs(uid);
       }
     }
 

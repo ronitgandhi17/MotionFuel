@@ -36,7 +36,7 @@ The recommended source/configuration remediations have been implemented: mandato
 |---|---:|---|
 | Original JVM unit suite | 10 passed | GitHub Actions run on the same application source completed successfully. |
 | Expanded JVM boundary/security suite | 44 passed, 1 failed | GitHub Actions run `33674275981`; failure is `GpsFilterBoundaryTest.invalidAccuracyValuesAreRejected`. |
-| Current Android/JVM regression suite | 80 declared | Adds adaptive-goal, hydration, recovery, split, record, weekly-report, migration, widget, export, Health Connect, barcode, Wear OS removal and deletion-guard coverage. |
+| Current Android/JVM regression suite | 87 declared | Adds nutrition OCR parsing, meal ranking, route generation, zone sanitisation, progress prediction, Room v6, private label capture, Health Connect, Wear OS removal and deletion-guard coverage. |
 | Firebase Security Rules suite | 10 declared | Emulator tests cover Firestore ownership/schema/deletion and Storage owner, cross-user, unauthenticated, content-type, path and deletion controls. |
 | Production Kotlin compilation | Passed | Expanded run compiled debug production and test Kotlin before executing tests. |
 | Debug APK assembly | Passed previously | Passed on the application source before the test-only changes. The expanded run stopped at the failing test before packaging. |

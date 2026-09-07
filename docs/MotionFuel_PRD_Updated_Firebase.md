@@ -4,7 +4,7 @@
 **Primary stack:** Kotlin, Android Studio, Jetpack Compose, Material Design 3, Firebase Authentication, Cloud Firestore, Firebase Storage, Room, DataStore, Health Connect, Google Play Services Barcode Scanner, Google Maps SDK for Android
 **Target platform:** Android 10+ (API 29+) for the university build, with graceful feature degradation when optional sensors are unavailable  
 **Architecture:** Feature-oriented Clean Architecture + MVVM  
-**Document status:** Version 3.1 — Wear OS companion removal revision, September 2026
+**Document status:** Version 4.0 — intelligent planning, safety and community revision, September 2026
 
 ---
 
@@ -14,6 +14,7 @@ This revision keeps MotionFuel realistic for a one-student Android build and rep
 
 The most important product and architecture changes are:
 
+- Fourteen additional capabilities are introduced through a Smart Planning hub: macro-aware meal recommendations, on-device nutrition-label OCR, recipes with serving scaling, scheduled workouts, locally generated route plans, expiring live safety shares, pace/heart-rate zones, cautious progress projections, opt-in challenges and leaderboards, personal-best celebration cards, context-aware reminders, offline route previews, data-source attribution, and English/Hindi accessible-display preferences.
 - Direct Wear OS pairing, device discovery and workout-command messaging have been removed. Health Connect remains the only optional platform bridge for supported health records.
 - Eleven advanced capabilities are now part of the assessed application: adaptive daily fuel goals, Health Connect import, barcode food lookup, workout splits and personal records, hydration tracking, recovery readiness, tomorrow meal planning, goals/streaks/achievements, an Android widget, complete data export/account deletion, and a weekly insight report.
 - The adaptive target transparently uses exercise energy, steps, weather and recent context, returns a reason list, and limits automatic calorie adjustment to 15% of the user's profile goal.
@@ -66,6 +67,27 @@ The result is a simpler architecture than the previous third-party identity vers
 | Weekly report | Summarise seven-day consistency, workouts, activity, food, protein, weight change and next focus | Show missing values as unavailable, never as fabricated measurements |
 
 ---
+
+## 0.1 Version 4.0 feature requirements
+
+| Capability | Required behaviour | Privacy/degradation rule |
+| --- | --- | --- |
+| Smart meals | Rank saved foods against remaining calories and protein | Explain the ranking; never present medical advice |
+| Label scanner | Capture a nutrition label and extract calories, protein, carbohydrate and fat on device | Use a temporary private FileProvider image and delete it after OCR |
+| Recipe builder | Combine saved foods, set servings and calculate per-serving nutrition | Persist recipes locally in Room |
+| Workout planner | Schedule a walk/run with distance, duration, reminder and completion state | Notifications require explicit Android permission |
+| Route planner | Generate a bounded loop from the latest permitted device/workout position | Fall back to the documented Melbourne demo origin when no position is available |
+| Safety sharing | Publish the latest workout position under an unguessable, one-hour token | Verified users only; owner-only writes; explicit stop control; expired reads denied |
+| Exercise zones | Summarise valid pace observations and show age-estimated HR ranges when Health Connect HR data exists | Ignore non-finite pace; label HR values as estimates |
+| Progress prediction | Project a target date only when at least two valid weights trend toward the goal | Maximum two-year horizon and visible low/moderate confidence |
+| Challenges | Create/join seven-day challenges and show a five-place member ranking | Verified accounts; member can update only their own score |
+| Personal bests | Celebrate and share the longest activity through the existing generated-card pipeline | Temporary cache and FileProvider sharing |
+| Smart notifications | Schedule six-hour contextual wellness check-ins | Opt-in and revocable; Android notification permission respected |
+| Offline routes | Persist planned route geometry and render its polyline without network tiles | No claim that third-party map tiles are cached |
+| Data sources | Identify MotionFuel, phone-sensor and Health Connect sources | Health Connect remains optional and read-only |
+| Accessibility/localisation | Offer 118% text scaling and English/Hindi application locale preferences | Preserve system defaults until the user opts in |
+
+Room schema version 6 adds `recipes`, `planned_workouts`, `planned_routes`, and `challenges`. Migration 5→6 must preserve all existing workouts, diary entries, saved foods, hydration, weight history and meal plans. Direct Wear OS functionality remains excluded.
 
 ## 1. Product Name
 

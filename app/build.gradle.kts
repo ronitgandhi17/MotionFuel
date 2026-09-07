@@ -26,8 +26,8 @@ android {
         applicationId = "com.ronitgandhi.motionfuel"
         minSdk = 29
         targetSdk = 36
-        versionCode = 3
-        versionName = "0.3.0"
+        versionCode = 4
+        versionName = "0.4.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         manifestPlaceholders["MAPS_API_KEY"] = mapsApiKey
@@ -73,6 +73,7 @@ dependencies {
     // Supplies Android core APIs, Compose activity hosting, lifecycle flows and ViewModels.
     implementation("androidx.core:core-ktx:1.16.0")
     implementation("androidx.activity:activity-compose:1.10.1")
+    implementation("androidx.appcompat:appcompat:1.7.1")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.9.2")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.9.2")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.9.2")
@@ -97,6 +98,8 @@ dependencies {
     implementation("androidx.datastore:datastore-preferences:1.1.7")
     implementation("androidx.health.connect:connect-client:1.1.0")
     implementation("com.google.android.gms:play-services-code-scanner:16.1.0")
+    implementation("com.google.mlkit:text-recognition:16.0.1")
+    implementation("androidx.work:work-runtime-ktx:2.10.2")
 
     // Keeps Firebase Authentication and Firestore SDK versions mutually compatible.
     implementation(platform("com.google.firebase:firebase-bom:34.18.0"))
