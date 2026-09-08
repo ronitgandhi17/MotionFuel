@@ -20,6 +20,11 @@ class MotionFuelApplication : Application() {
         FoodShareImage.deleteExpiredFiles(this)
         if (FirebaseApp.getApps(this).isNotEmpty()) {
             FirebaseAppCheck.getInstance().installAppCheckProviderFactory(MotionFuelAppCheckProvider.factory())
+            com.google.firebase.auth.FirebaseAuth.getInstance().addAuthStateListener { auth ->
+                val consent = auth.currentUser?.uid?.let { com.ronitgandhi.motionfuel.data.features.FeatureStore(this, it).data.value.optBoolean("diagnostics", false) } ?: false
+                com.google.firebase.crashlytics.FirebaseCrashlytics.getInstance().setCrashlyticsCollectionEnabled(consent)
+                com.google.firebase.perf.FirebasePerformance.getInstance().isPerformanceCollectionEnabled = consent
+            }
         }
     }
 

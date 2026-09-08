@@ -58,6 +58,7 @@ fun WorkoutScreen(
     onPauseResume: () -> Unit,
     onFinish: () -> Unit,
     onDone: () -> Unit,
+    onLap: () -> Unit = {},
 ) {
     val complete = telemetry.status == WorkoutStatus.COMPLETE
     LazyColumn(
@@ -125,6 +126,11 @@ fun WorkoutScreen(
                     AssistChip(onClick = {}, label = { Text("${(telemetry.activity.confidence * 100).toInt()}% confidence") })
                 }
             }
+        }
+        if (!complete && !telemetry.isDemo) item {
+            if (telemetry.autoPaused) Text("Auto-paused • move to resume")
+            OutlinedButton(onClick = onLap, enabled = telemetry.status == WorkoutStatus.ACTIVE, modifier = Modifier.fillMaxWidth()) { Text("Mark lap") }
+            telemetry.laps.forEachIndexed { i, lap -> Text("Lap ${i + 1}: ${formatDistance(lap.distanceMeters, units == UnitSystem.IMPERIAL)} • ${formatDuration(lap.elapsedSeconds)} cumulative") }
         }
         insights.firstOrNull()?.let { insight -> item { InsightCard(insight) } }
         item {

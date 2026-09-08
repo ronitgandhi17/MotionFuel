@@ -46,7 +46,7 @@ import kotlin.math.abs
 import kotlin.math.sqrt
 
 class WorkoutTrackingService : Service(), SensorEventListener, LocationListener {
-    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val gpsFilter = GpsFilter()
     private val classifier = SensorFusionClassifier()
     private val stabilizer = ActivityStateStabilizer()
@@ -66,6 +66,14 @@ class WorkoutTrackingService : Service(), SensorEventListener, LocationListener 
     private var currentAltitude: Double? = null
     private var lastSpeedMps = 0.0
     private var weightKg = 72.0
+    private val autoPauseDetector = com.ronitgandhi.motionfuel.domain.algorithm.AutoPauseDetector()
+    private var autoPauseEnabled = false
+    private var adaptiveTracking = false
+    private var automaticPause = false
+    private var lastInterval = 1000L
+    private var lastIntervalCheck = 0L
+    private var nextAutomaticLap = 1000.0
+
 
     override fun onCreate() {
         super.onCreate()
@@ -81,8 +89,9 @@ class WorkoutTrackingService : Service(), SensorEventListener, LocationListener 
                     .getOrDefault(WorkoutType.RUN),
                 intent.getDoubleExtra(EXTRA_WEIGHT_KG, 72.0),
             )
-            ACTION_PAUSE -> pauseWorkout()
-            ACTION_RESUME -> resumeWorkout()
+            ACTION_PAUSE -> { automaticPause = false; pauseWorkout() }
+            ACTION_LAP -> recordLap(false)
+            ACTION_RESUME -> { automaticPause = false; autoPauseDetector.reset(); resumeWorkout() }
             ACTION_STOP -> stopWorkout()
         }
         return START_NOT_STICKY
@@ -92,6 +101,13 @@ class WorkoutTrackingService : Service(), SensorEventListener, LocationListener 
 
     private fun startWorkout(type: WorkoutType, requestedWeightKg: Double) {
         if (WorkoutSessionController.telemetry.value.status == WorkoutStatus.ACTIVE) return
+        val user = runCatching { com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid }.getOrNull()
+        val options = user?.let { com.ronitgandhi.motionfuel.data.features.FeatureStore(this, it).data.value }
+        autoPauseEnabled = options?.optBoolean("autoPause") ?: false
+        adaptiveTracking = options?.optBoolean("adaptiveGps") ?: false
+        automaticPause = false
+        nextAutomaticLap = 1000.0
+        autoPauseDetector.reset()
         weightKg = requestedWeightKg.coerceIn(35.0, 250.0)
         startedAtElapsed = SystemClock.elapsedRealtime()
         accumulatedPauseMillis = 0
@@ -121,13 +137,14 @@ class WorkoutTrackingService : Service(), SensorEventListener, LocationListener 
     private fun pauseWorkout() {
         if (WorkoutSessionController.telemetry.value.status != WorkoutStatus.ACTIVE) return
         pausedAtElapsed = SystemClock.elapsedRealtime()
-        WorkoutSessionController.update { it.copy(status = WorkoutStatus.PAUSED) }
+        WorkoutSessionController.update { it.copy(status = WorkoutStatus.PAUSED, autoPaused = automaticPause) }
     }
 
     private fun resumeWorkout() {
         if (WorkoutSessionController.telemetry.value.status != WorkoutStatus.PAUSED) return
         accumulatedPauseMillis += SystemClock.elapsedRealtime() - pausedAtElapsed
-        WorkoutSessionController.update { it.copy(status = WorkoutStatus.ACTIVE) }
+        gpsFilter.reset()
+        WorkoutSessionController.update { it.copy(status = WorkoutStatus.ACTIVE, autoPaused = false) }
     }
 
     private fun stopWorkout() {
@@ -140,8 +157,18 @@ class WorkoutTrackingService : Service(), SensorEventListener, LocationListener 
 
     private fun tick() {
         val current = WorkoutSessionController.telemetry.value
-        if (current.status != WorkoutStatus.ACTIVE) return
         val now = SystemClock.elapsedRealtime()
+        if (adaptiveTracking && now - lastIntervalCheck > 30_000) {
+            lastIntervalCheck = now
+            val battery = (getSystemService(Context.BATTERY_SERVICE) as android.os.BatteryManager).getIntProperty(android.os.BatteryManager.BATTERY_PROPERTY_CAPACITY)
+            val interval = com.ronitgandhi.motionfuel.domain.algorithm.TrainingAnalysis.locationInterval(battery, current.activity.type == ActivityType.STATIONARY, true)
+            if (interval != lastInterval) {
+                lastInterval = interval
+                locationManager.removeUpdates(this)
+                requestLocationUpdates()
+            }
+        }
+        if (current.status != WorkoutStatus.ACTIVE) return
         val elapsedSeconds = ((now - startedAtElapsed - accumulatedPauseMillis) / 1_000L).coerceAtLeast(0)
         val cadence = if (now > recentStepTime) {
             (((latestStepCount - recentStepCount) * 60_000.0) / (now - recentStepTime)).toInt().coerceIn(0, 240)
@@ -176,13 +203,31 @@ class WorkoutTrackingService : Service(), SensorEventListener, LocationListener 
                 activity = activity,
             ),
         )
+        if (current.distanceMeters >= nextAutomaticLap) {
+            recordLap(true)
+            nextAutomaticLap = (current.distanceMeters / 1000).toInt() * 1000.0 + 1000.0
+        }
         val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         manager.notify(NOTIFICATION_ID, notification("%.2f km • %s".format(current.distanceMeters / 1_000.0, activity.type.name.lowercase())))
     }
 
     override fun onLocationChanged(location: Location) {
         val current = WorkoutSessionController.telemetry.value
-        if (current.status != WorkoutStatus.ACTIVE) return
+        val speed = if (location.hasSpeed()) location.speed.toDouble() else Double.NaN
+        val fresh = SystemClock.elapsedRealtimeNanos() - location.elapsedRealtimeNanos in 0..10_000_000_000L
+        if (autoPauseEnabled && fresh) {
+            if (current.status == WorkoutStatus.ACTIVE && autoPauseDetector.shouldPause(speed, location.accuracy, SystemClock.elapsedRealtime())) {
+                automaticPause = true
+                pauseWorkout()
+                return
+            }
+            if (current.status == WorkoutStatus.PAUSED && automaticPause && speed.isFinite() && speed >= 0.8 && location.accuracy in 0.1f..25f) {
+                automaticPause = false
+                autoPauseDetector.reset()
+                resumeWorkout()
+            }
+        }
+        if (WorkoutSessionController.telemetry.value.status != WorkoutStatus.ACTIVE) return
         val sample = GeoPoint(
             latitude = location.latitude,
             longitude = location.longitude,
@@ -210,6 +255,13 @@ class WorkoutTrackingService : Service(), SensorEventListener, LocationListener 
                 gpsQuality = filtered.quality,
             )
         }
+    }
+
+    private fun recordLap(automatic: Boolean) {
+        val current = WorkoutSessionController.telemetry.value
+        val previous = current.laps.lastOrNull()
+        if (current.status != WorkoutStatus.ACTIVE || current.distanceMeters <= (previous?.distanceMeters ?: 0.0)) return
+        WorkoutSessionController.update { it.copy(laps = it.laps + com.ronitgandhi.motionfuel.domain.model.WorkoutLap(it.distanceMeters, it.elapsedSeconds, automatic)) }
     }
 
     @Deprecated("Legacy LocationListener callback")
@@ -271,7 +323,7 @@ class WorkoutTrackingService : Service(), SensorEventListener, LocationListener 
         }
         providers.forEach { provider ->
             runCatching {
-                val interval = if (provider == LocationManager.GPS_PROVIDER) 1_000L else 3_000L
+                val interval = if (provider == LocationManager.GPS_PROVIDER) lastInterval else maxOf(lastInterval, 3_000L)
                 locationManager.requestLocationUpdates(provider, interval, 0f, this, Looper.getMainLooper())
             }
         }
@@ -332,6 +384,7 @@ class WorkoutTrackingService : Service(), SensorEventListener, LocationListener 
 
     companion object {
         const val ACTION_START = "com.ronitgandhi.motionfuel.START"
+        const val ACTION_LAP = "com.ronitgandhi.motionfuel.LAP"
         const val ACTION_PAUSE = "com.ronitgandhi.motionfuel.PAUSE"
         const val ACTION_RESUME = "com.ronitgandhi.motionfuel.RESUME"
         const val ACTION_STOP = "com.ronitgandhi.motionfuel.STOP"

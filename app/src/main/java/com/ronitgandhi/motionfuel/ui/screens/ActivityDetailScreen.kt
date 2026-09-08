@@ -151,6 +151,7 @@ fun ActivityDetailScreen(workout: WorkoutSummary, units: UnitSystem, darkTheme: 
                     }
                 }
             }
+            item { Card(Modifier.fillMaxWidth()) { Column(Modifier.padding(16.dp)) { Text("Elevation profile", fontWeight = FontWeight.Bold); ElevationProfile(workout.route, workout.distanceMeters, workout.durationSeconds) } } }
             if (splits.isNotEmpty()) {
                 item {
                     Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp)) {

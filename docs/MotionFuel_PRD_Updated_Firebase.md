@@ -4,7 +4,7 @@
 **Primary stack:** Kotlin, Android Studio, Jetpack Compose, Material Design 3, Firebase Authentication, Cloud Firestore, Firebase Storage, Room, DataStore, Health Connect, Google Play Services Barcode Scanner, Google Maps SDK for Android
 **Target platform:** Android 10+ (API 29+) for the university build, with graceful feature degradation when optional sensors are unavailable  
 **Architecture:** Feature-oriented Clean Architecture + MVVM  
-**Document status:** Version 4.0 — intelligent planning, safety and community revision, September 2026
+**Document status:** Version 4.1 — everyday tools, interoperability and recovery revision, September 2026
 
 ---
 
@@ -13,6 +13,8 @@
 This revision keeps MotionFuel realistic for a one-student Android build and replaces the previous third-party identity design completely with **Firebase Authentication**.
 
 The most important product and architecture changes are:
+
+- Fifteen further additions are available through Everyday tools and the tracking UI. Their implemented scope, limits and verification gates are defined in section 35 below.
 
 - Fourteen additional capabilities are introduced through a Smart Planning hub: macro-aware meal recommendations, on-device nutrition-label OCR, recipes with serving scaling, scheduled workouts, locally generated route plans, expiring live safety shares, pace/heart-rate zones, cautious progress projections, opt-in challenges and leaderboards, personal-best celebration cards, context-aware reminders, offline route previews, data-source attribution, and English/Hindi accessible-display preferences.
 - Direct Wear OS pairing, device discovery and workout-command messaging have been removed. Health Connect remains the only optional platform bridge for supported health records.
@@ -4099,3 +4101,44 @@ The assessed MVP is technically deep without depending on an unnecessary authent
 - Google Maps is presentation only; route filtering/distance calculations remain domain logic.
 - Android background workout recording is implemented with a user-started location foreground service.
 - External API secrets that must remain confidential belong in a trusted backend/Cloud Function rather than in the APK.
+
+
+## 35. Everyday tools, interoperability and recovery (v4.1)
+
+### 35.1 User flows and acceptance criteria
+
+| Capability | Implemented user flow | Acceptance criteria and limits |
+| --- | --- | --- |
+| Cross-device cloud sync | Profile → Smart Planning → Everyday tools → Privacy; confirm local-data ownership, then Sync now. | Authenticated, verified owners only. Versioned immutable Storage JSON objects and a Firestore manifest. Upload/download snapshots of Room records and selected preferences. Concurrent device revisions require an explicit complete-copy choice. Transactions reject a manifest changed during upload. 10 MB limit. This is user-triggered snapshot sync, not a continuous record-merging service. Local food-photo files and cached Health Connect records are not transferred. |
+| GPX import/export | Training → Import GPX route, or Export GPX on a recorded workout. | Accept track/route points, validate coordinates and finite elevations, reject DTD/entity declarations and files over 4 MB or 30,000 points. Imported routes appear in existing offline route previews. Export uses Android document creation and requires full-route privacy confirmation. |
+| Auto-pause and laps | Enable auto-pause before a real workout; use Mark lap while active. | Ten seconds of reliable speed below 0.5 m/s triggers a pause. Speed at least 0.8 m/s resumes automatic pauses. Missing/unreliable speed cannot pause. Manual pauses do not automatically resume. Automatic kilometre marks and manual cumulative distance/time marks are recorded and persisted. |
+| Elevation analysis | Activity summary or Everyday tools → Training. | Display elevation profile, ascent/descent using a 3 m dead band, and a clearly labelled heuristic effort distance and pace. No elevation is fabricated when absent. Heuristic effort distance = horizontal distance + 10 × ascent. |
+| Battery-aware tracking | Enable before a workout. | GPS interval varies from 1 s while moving to 3 s stationary and 5 s at 15% battery or below; reevaluate every 30 s. Explain reduced detail. |
+| Pantry inventory | Food → Pantry; enter food, servings and ISO expiry date. | Persist per account. Consume one serving or remove items. Highlight expired and next-two-day items. Expiry alerts are shown in the app; push expiry notifications are not included. Quantities use servings, not automatic mass/volume conversions. |
+| Automatic grocery list | Food → Grocery; choose recipe and desired servings, then Generate. | Aggregate tomorrow's planned foods and scaled recipe ingredients by normalized name; subtract unexpired pantry servings; remove nonpositive balances. Persist checkboxes. |
+| Micronutrients | Food → Additional nutrients; choose today's logged entry and label value. | Fibre, sugar, sodium, potassium, calcium, iron, vitamins A/C/D/B12, with visible units. Unknown values stay unknown. Daily totals report entry coverage and ignore deleted entries. Label values are entered manually; API enrichment is not yet provided. |
+| Dietary/allergy filters | Food → Dietary filters; select diet/allergens and confirm saved-food metadata. | Vegetarian, vegan, halal and listed allergens. Active restrictions exclude foods without confirmed metadata. Ingredient/possible-contamination tags filter displayed meal suggestions. App does not certify products or guarantee absence of allergens. |
+| Training load | Training → Training load. | Compare seven-day duration/type effort with the prior three-week weekly average. Disclose heuristic and insufficient baseline. No injury-risk diagnosis or measured physiological fatigue claim. |
+| Privacy centre | Privacy tab and existing Profile export/deletion actions. | Route upload off by default; separate detailed-route consent and optional ~100 m coordinate rounding. Explicit cloud snapshot deletion. User-triggered confirmed 30/90/365-day local retention. Local retention does not silently delete remote snapshots. Diagnostic consent independently chosen on each device. |
+| Tablet/foldable layouts | Resize or use a large window. | Navigation rail at 600 dp; activity list and detail panes at 840 dp. Smaller windows retain bottom navigation and single-pane details. No direct Wear OS integration. |
+| Coach/export report | Training → Share 28-day PDF report. | Paginated PDF with activity totals, recorded-day nutrition averages and weight history. Missing diary days excluded from averages. Private export cache and Android share sheet. |
+| In-app feedback | Feedback tab. | User writes feedback, optionally previews app/Android version attachment, then chooses recipient via share sheet. Nothing is sent automatically. |
+| Crash/performance monitoring | Privacy → diagnostic consent. | Firebase Crashlytics and Performance SDK/plugin integration. Collection disabled by default and on sign-out; opt-in required. No custom account, food, weight or route attributes are sent. Production verification requires a configured Firebase build and physical/emulated-device testing. |
+
+### 35.2 Persistence, privacy and recovery
+
+- Existing Room v6 rows remain intact. Additional preferences, pantry, grocery lists, nutrient metadata and lap records use account-scoped private preferences.
+- The cloud snapshot includes an owner ID and schema version. Import stages table/column validation before a Room transaction. Schema mismatches abort instead of destroying a database.
+- Snapshot upload/download is blocked during an active workout. Claiming local records for a second account is blocked until local data is cleared.
+- Photo URLs in local saved-food records are excluded from snapshots because content grants and private files do not transfer to another phone.
+- Firebase rules must be deployed before cloud sync is usable. Existing avatar rules are preserved; backup objects have distinct owner-only JSON/size/path rules.
+- Account deletion removes the current snapshot and manifest before deleting Authentication identity. Local data deletion clears new account-scoped feature preferences.
+- Cloud storage is encrypted by the provider; end-to-end encryption is not claimed.
+
+### 35.3 Verification gates
+
+- JVM regression tests: GPX round-trip, route-point import, XXE/DTD rejection, invalid coordinates, non-finite values, bounded input, pause hysteresis, poor accuracy, elevation jitter, battery intervals, grocery aggregation/subtraction and allergy metadata coverage.
+- Firebase emulator tests: verified-owner manifest schema, cross-user and unverified denial, private immutable backups, content type/path/size rejection and owner deletion.
+- Android instrumentation tests: Android XML parser GPX round-trip and malicious-document rejection; pantry UI persistence interaction.
+- Android CI must pass lint, JVM tests, debug/release assembly, and Firebase rules. Emulator UI verification is reported separately from JVM success.
+- Physical-device acceptance still covers real GPS auto-pause/resume, battery consumption, sharing apps, fold/unfold state continuity, two-phone snapshot conflicts and Firebase diagnostic delivery.

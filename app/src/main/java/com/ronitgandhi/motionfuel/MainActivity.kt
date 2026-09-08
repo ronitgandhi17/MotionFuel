@@ -11,6 +11,10 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.setContent
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.os.LocaleListCompat
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.material3.NavigationRail
+import androidx.compose.material3.NavigationRailItem
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -232,6 +236,7 @@ private fun MotionFuelRoot(
             weather = weather,
             weatherStatus = weatherStatus,
             onPauseResume = viewModel::pauseOrResumeWorkout,
+            onLap = { context.startService(Intent(context, com.ronitgandhi.motionfuel.service.WorkoutTrackingService::class.java).setAction(com.ronitgandhi.motionfuel.service.WorkoutTrackingService.ACTION_LAP)) },
             onFinish = viewModel::finishWorkout,
             onDone = {
                 viewModel.dismissCompletedWorkout()
@@ -239,18 +244,24 @@ private fun MotionFuelRoot(
             },
         )
     } else if (selectedWorkout != null) {
-        ActivityDetailScreen(
-            workout = requireNotNull(selectedWorkout),
-            units = settings.units,
-            darkTheme = settings.darkTheme,
-            onBack = { selectedWorkout = null },
-        )
+        BoxWithConstraints(Modifier.fillMaxSize()) {
+            Row(Modifier.fillMaxSize()) {
+                if (maxWidth >= 840.dp) Box(Modifier.weight(0.4f)) {
+                    ActivityScreen(workouts, settings, onStartWorkout = { selectedWorkout = null; showStartDialog = true }, onActivitySelected = { selectedWorkout = it }, personalRecords = personalRecords)
+                }
+                Box(Modifier.weight(0.6f)) {
+                    ActivityDetailScreen(workout = requireNotNull(selectedWorkout), units = settings.units, darkTheme = settings.darkTheme, onBack = { selectedWorkout = null })
+                }
+            }
+        }
     } else if (showExpansionHub) {
         ExpansionHubScreen(viewModel = viewModel, profile = profile, onBack = { showExpansionHub = false })
     } else {
+        BoxWithConstraints(Modifier.fillMaxSize()) {
+        val wide = maxWidth >= 600.dp
         Scaffold(
             bottomBar = {
-                NavigationBar {
+                if (!wide) NavigationBar {
                     MainTab.entries.forEach { tab ->
                         NavigationBarItem(
                             selected = pagerState.currentPage == tab.ordinal,
@@ -262,10 +273,17 @@ private fun MotionFuelRoot(
                 }
             },
         ) { padding ->
+            Row(Modifier.fillMaxSize().padding(padding)) {
+            if (wide) NavigationRail {
+                MainTab.entries.forEach { tab -> NavigationRailItem(
+                    selected = pagerState.currentPage == tab.ordinal,
+                    onClick = { navigationScope.launch { pagerState.animateScrollToPage(tab.ordinal) } },
+                    icon = { Icon(tab.icon, tab.label) }, label = { Text(tab.label) }) }
+            }
             HorizontalPager(
                 state = pagerState,
                 userScrollEnabled = rootSwipeEnabled,
-                modifier = Modifier.fillMaxSize().padding(padding),
+                modifier = Modifier.weight(1f).fillMaxSize(),
                 key = { MainTab.entries[it].name },
             ) { page ->
                 when (MainTab.entries[page]) {
@@ -366,6 +384,9 @@ private fun MotionFuelRoot(
                 }
             }
         }
+    }
+
+    }
     }
 
     if (showStartDialog) {
