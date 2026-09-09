@@ -1,6 +1,12 @@
 <resources>
     <string name="app_name">MotionFuel</string>
     <string name="widget_description">कैलोरी, कदम और पानी की जानकारी</string>
+    <string name="widget_calories">%1$d किलो कैलोरी शेष</string>
+    <string name="widget_steps">%1$d कदम</string>
+    <string name="widget_water">%1$d मिली पानी</string>
+    <string name="widget_calories_default">0 किलो कैलोरी शेष</string>
+    <string name="widget_steps_default">0 कदम</string>
+    <string name="widget_water_default">0 मिली पानी</string>
     <string name="smart_planning">स्मार्ट योजना</string>
     <string name="smart_planning_subtitle">भोजन, प्रशिक्षण, समुदाय और डेटा टूल</string>
     <string name="switch_language">हिन्दी / English बदलें</string>
