@@ -2,6 +2,12 @@
 
 MotionFuel is a Kotlin/Jetpack Compose fitness and nutrition app that combines Firebase accounts, maintenance-calorie estimates, an offline nutrition diary, walk/run tracking and explainable context insights.
 
+## Everyday tools (v4.1)
+
+Open **Profile → Smart Planning → Everyday tools** for pantry inventory, grocery generation, dietary filters, manual micronutrients, GPX routes, training load, PDF reports, cloud snapshot sync, retention and feedback. The workout screen adds auto-pause and lap recording; large windows use rail navigation and activity/saved-food list-detail panes.
+
+Cloud sync is an explicit, versioned whole-copy workflow with conflict confirmation and a 10 MB cap. Deploy Firestore/Storage rules before using it. Detailed routes require opt-in; local food photos and Health Connect caches are not included. Crashlytics/Performance require a configured Firebase build and diagnostic consent. See PRD §35 for exact limits and tests.
+
 ## Implemented in this revision
 
 - Smart Planning hub with meal recommendations, nutrition-label OCR, recipe/serving calculations, workout reminders, loop-route planning, offline polyline previews, exercise zones and cautious progress prediction.

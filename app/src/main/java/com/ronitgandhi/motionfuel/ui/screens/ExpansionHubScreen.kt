@@ -44,6 +44,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -88,6 +89,14 @@ private enum class ExpansionSection(val label: String) { FOOD("Food"), TRAINING(
 fun ExpansionHubScreen(viewModel: MotionFuelViewModel, profile: UserProfile, onBack: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    var showEverydayTools by rememberSaveable { mutableStateOf(false) }
+    if (showEverydayTools) {
+        EverydayToolsScreen(viewModel, profile) { showEverydayTools = false }
+        return
+    }
+    val featureStore = remember(profile.userId) { com.ronitgandhi.motionfuel.data.features.FeatureStore(context, profile.userId) }
+    val featureData by featureStore.data.collectAsState()
+
     val foods by viewModel.savedFoods.collectAsState()
     val recommendations by viewModel.mealRecommendations.collectAsState()
     val recipes by viewModel.recipes.collectAsState()
@@ -99,6 +108,13 @@ fun ExpansionHubScreen(viewModel: MotionFuelViewModel, profile: UserProfile, onB
     val health by viewModel.connectedHealth.collectAsState()
     val safetyUrl by viewModel.safetyShareUrl.collectAsState()
     val standings by viewModel.challengeStandings.collectAsState()
+    val filteredRecommendations = recommendations.filter { recommendation ->
+        val list = featureData.optJSONArray("foodMetadata") ?: org.json.JSONArray()
+        val metadata = (0 until list.length()).map { list.getJSONObject(it) }.find { it.optString("id") == recommendation.foodId }
+        com.ronitgandhi.motionfuel.domain.algorithm.FoodPlanning.allowed(
+            metadata?.optString("tags").orEmpty().split(",").toSet(), metadata?.optString("allergens").orEmpty().split(",").toSet(),
+            featureData.optString("diet", "Any"), featureData.optString("excluded").split(",").filter(String::isNotBlank).toSet(), metadata?.optBoolean("verified") == true)
+    }
     var section by remember { mutableStateOf(ExpansionSection.FOOD) }
     var recipeDialog by remember { mutableStateOf(false) }
     var workoutDialog by remember { mutableStateOf(false) }
@@ -137,11 +153,12 @@ fun ExpansionHubScreen(viewModel: MotionFuelViewModel, profile: UserProfile, onB
                 ExpansionSection.entries.forEach { item -> FilterChip(selected = section == item, onClick = { section = item }, label = { Text(item.label) }) }
             }
         }
+        item { OutlinedButton(onClick = { showEverydayTools = true }, modifier = Modifier.fillMaxWidth()) { Text("Everyday tools • pantry, sync and training") } }
         when (section) {
             ExpansionSection.FOOD -> {
                 item { FeatureTitle(Icons.Rounded.Restaurant, "Smart meal recommendations", "Ranked against today's remaining calories and protein") }
-                if (recommendations.isEmpty()) item { InfoCard("Save foods to receive personalised meal suggestions.") }
-                else items(recommendations, key = { it.foodId }) { item -> InfoCard("${item.name} • ${item.caloriesKcal.toInt()} kcal\n${item.reason}") }
+                if (filteredRecommendations.isEmpty()) item { InfoCard("Save foods with confirmed ingredient metadata matching your dietary preferences to receive suggestions.") }
+                else items(filteredRecommendations, key = { it.foodId }) { item -> InfoCard("${item.name} • ${item.caloriesKcal.toInt()} kcal\n${item.reason}") }
                 item {
                     Button(onClick = {
                         val directory = File(context.cacheDir, "label_scans").apply { mkdirs() }

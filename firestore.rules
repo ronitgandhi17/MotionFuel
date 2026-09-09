@@ -70,6 +70,15 @@ service cloud.firestore {
         );
       allow delete: if verifiedAs(uid);
 
+      match /sync/{documentId} {
+        allow read, delete: if verifiedAs(uid) && documentId == 'current';
+        allow create, update: if verifiedAs(uid) && documentId == 'current'
+          && request.resource.data.keys().hasOnly(['version', 'updatedAt'])
+          && request.resource.data.version is string
+          && request.resource.data.version.matches('[a-f0-9-]{36}')
+          && request.resource.data.updatedAt == request.time;
+      }
+
       match /weightEntries/{entryId} {
         allow read, delete: if verifiedAs(uid);
         allow create, update: if verifiedAs(uid) && validWeightEntry(request.resource.data);

@@ -193,3 +193,37 @@ test("verified users can join challenges but cannot write another member score",
   await assertFails(setDoc(doc(memberDb, "challenges", "weekly-5k", "members", ownerId), { displayName: "Fake owner", score: 999 }));
   await assertSucceeds(getDoc(doc(memberDb, "challenges", "weekly-5k", "members", "member")));
 });
+
+test("sync manifests require verified ownership, exact schema and server time", async () => {
+  const db = context(ownerId, ownerEmail, true).firestore();
+  const path = `users/${ownerId}/sync/current`;
+  const value = { version: "12345678-1234-1234-1234-123456789abc", updatedAt: serverTimestamp() };
+  await assertSucceeds(setDoc(doc(db, path), value));
+  await assertFails(getDoc(doc(context("attacker", "a@example.com", true).firestore(), path)));
+  await assertFails(getDoc(doc(context(ownerId, ownerEmail, false).firestore(), path)));
+  await assertFails(setDoc(doc(db, path), { ...value, extra: true }));
+  await assertFails(setDoc(doc(db, path), { ...value, version: "../../other" }));
+  await assertSucceeds(deleteDoc(doc(db, path)));
+});
+
+test("cloud snapshots are private, verified-owner JSON objects and immutable", async () => {
+  const path = `backups/${ownerId}/12345678-1234-1234-1234-123456789abc.json`;
+  const bytes = new TextEncoder().encode('{"schema":6}');
+  const owner = context(ownerId, ownerEmail, true).storage();
+  await assertSucceeds(uploadBytes(storageRef(owner, path), bytes, { contentType: "application/json" }));
+  await assertSucceeds(getBytes(storageRef(owner, path)));
+  await assertFails(uploadBytes(storageRef(owner, path), bytes, { contentType: "application/json" }));
+  await assertFails(getBytes(storageRef(context("attacker", "a@example.com", true).storage(), path)));
+  await assertFails(getBytes(storageRef(environment.unauthenticatedContext().storage(), path)));
+  await assertFails(getBytes(storageRef(context(ownerId, ownerEmail, false).storage(), path)));
+  await assertSucceeds(deleteObject(storageRef(owner, path)));
+});
+
+test("backup uploads reject excess size, wrong type, path and ownership", async () => {
+  const owner = context(ownerId, ownerEmail, true).storage();
+  const path = `backups/${ownerId}/12345678-1234-1234-1234-123456789abc.json`;
+  await assertFails(uploadBytes(storageRef(owner, path), new Uint8Array(10 * 1024 * 1024 + 1), { contentType: "application/json" }));
+  await assertFails(uploadBytes(storageRef(owner, path), new Uint8Array(1), { contentType: "image/jpeg" }));
+  await assertFails(uploadBytes(storageRef(owner, `backups/${ownerId}/bad.txt`), new Uint8Array(1), { contentType: "application/json" }));
+  await assertFails(uploadBytes(storageRef(context("attacker", "a@example.com", true).storage(), path), new Uint8Array(1), { contentType: "application/json" }));
+});

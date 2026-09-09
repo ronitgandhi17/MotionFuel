@@ -562,9 +562,10 @@ class MotionFuelViewModel(application: Application) : AndroidViewModel(applicati
             )
         }
         viewModelScope.launch {
+            val savedId = UUID.randomUUID().toString()
             repository.saveWorkout(
                 WorkoutSummary(
-                    id = UUID.randomUUID().toString(),
+                    id = savedId,
                     type = snapshot.type,
                     startedAtMillis = workoutStartedAtMillis.takeIf { it > 0 } ?: System.currentTimeMillis(),
                     durationSeconds = snapshot.elapsedSeconds,
@@ -578,6 +579,9 @@ class MotionFuelViewModel(application: Application) : AndroidViewModel(applicati
                     route = snapshot.route,
                 ),
             )
+            runCatching { FirebaseAuth.getInstance().currentUser?.uid }.getOrNull()?.let { uid ->
+                com.ronitgandhi.motionfuel.data.features.FeatureStore(app, uid).putItem("laps", org.json.JSONObject().put("id", savedId).put("items", org.json.JSONArray(snapshot.laps.map { org.json.JSONObject().put("meters", it.distanceMeters).put("seconds", it.elapsedSeconds).put("automatic", it.automatic) })))
+            }
             syncChallengeScores(snapshot.distanceMeters)
         }
     }
@@ -602,6 +606,15 @@ class MotionFuelViewModel(application: Application) : AndroidViewModel(applicati
             }
         }
         repository.deleteAllLocalData()
+        runCatching { FirebaseAuth.getInstance().currentUser?.uid }.getOrNull()?.let { uid ->
+            com.ronitgandhi.motionfuel.data.features.FeatureStore(app, uid).replace(org.json.JSONObject())
+            app.getSharedPreferences("sync_$uid", android.content.Context.MODE_PRIVATE).edit().clear().apply()
+            app.getSharedPreferences("dataset_owner", android.content.Context.MODE_PRIVATE).edit().clear().apply()
+            runCatching {
+                com.google.firebase.crashlytics.FirebaseCrashlytics.getInstance().setCrashlyticsCollectionEnabled(false)
+                com.google.firebase.perf.FirebasePerformance.getInstance().isPerformanceCollectionEnabled = false
+            }
+        }
     }
 
     private suspend fun addSavedFoodToDiary(food: SavedFood, mealType: MealType, consumedAtMillis: Long) {

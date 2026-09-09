@@ -304,6 +304,10 @@ class FirebaseAuthViewModel(application: Application) : AndroidViewModel(applica
                     "Account deletion requires a recent login. Sign out, sign in again, then retry."
                 }
                 val userDocument = requireNotNull(firestore).collection("users").document(uid)
+                val syncDocument = userDocument.collection("sync").document("current")
+                val backupObjects = com.google.firebase.storage.FirebaseStorage.getInstance().reference.child("backups/$uid").listAll().await()
+                backupObjects.items.forEach { it.delete().await() }
+                syncDocument.delete().await()
                 val weightDocuments = userDocument.collection("weightEntries").get().await()
                 weightDocuments.documents.chunked(400).forEach { group ->
                     requireNotNull(firestore).batch().also { batch ->

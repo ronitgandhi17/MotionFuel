@@ -11,6 +11,10 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.setContent
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.os.LocaleListCompat
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.material3.NavigationRail
+import androidx.compose.material3.NavigationRailItem
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -34,6 +38,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -202,12 +207,13 @@ private fun MotionFuelRoot(
     // Keeps swipe gestures and bottom-navigation selection on the same five-page state.
     val pagerState = rememberPagerState(initialPage = MainTab.TODAY.ordinal, pageCount = { MainTab.entries.size })
     val navigationScope = rememberCoroutineScope()
-    var selectedWorkout by remember { mutableStateOf<WorkoutSummary?>(null) }
+    var selectedWorkoutId by rememberSaveable { mutableStateOf<String?>(null) }
+    val selectedWorkout = workouts.firstOrNull { it.id == selectedWorkoutId }
     var showStartDialog by remember { mutableStateOf(false) }
     var pendingRealType by remember { mutableStateOf<WorkoutType?>(null) }
     var foodIsRootPage by remember { mutableStateOf(true) }
     var profileIsRootPage by remember { mutableStateOf(true) }
-    var showExpansionHub by remember { mutableStateOf(false) }
+    var showExpansionHub by rememberSaveable { mutableStateOf(false) }
     val rootSwipeEnabled = !showStartDialog && when (MainTab.entries[pagerState.currentPage]) {
         MainTab.FOOD -> foodIsRootPage
         MainTab.PROFILE -> profileIsRootPage
@@ -232,6 +238,7 @@ private fun MotionFuelRoot(
             weather = weather,
             weatherStatus = weatherStatus,
             onPauseResume = viewModel::pauseOrResumeWorkout,
+            onLap = { context.startService(Intent(context, com.ronitgandhi.motionfuel.service.WorkoutTrackingService::class.java).setAction(com.ronitgandhi.motionfuel.service.WorkoutTrackingService.ACTION_LAP)) },
             onFinish = viewModel::finishWorkout,
             onDone = {
                 viewModel.dismissCompletedWorkout()
@@ -239,18 +246,25 @@ private fun MotionFuelRoot(
             },
         )
     } else if (selectedWorkout != null) {
-        ActivityDetailScreen(
-            workout = requireNotNull(selectedWorkout),
-            units = settings.units,
-            darkTheme = settings.darkTheme,
-            onBack = { selectedWorkout = null },
-        )
+        BoxWithConstraints(Modifier.fillMaxSize()) {
+            val showActivityList = maxWidth >= 840.dp
+            Row(Modifier.fillMaxSize()) {
+                if (showActivityList) Box(Modifier.weight(0.4f)) {
+                    ActivityScreen(workouts, settings, onStartWorkout = { selectedWorkoutId = null; showStartDialog = true }, onActivitySelected = { selectedWorkoutId = it.id }, personalRecords = personalRecords)
+                }
+                Box(Modifier.weight(0.6f)) {
+                    ActivityDetailScreen(workout = requireNotNull(selectedWorkout), units = settings.units, darkTheme = settings.darkTheme, onBack = { selectedWorkoutId = null })
+                }
+            }
+        }
     } else if (showExpansionHub) {
         ExpansionHubScreen(viewModel = viewModel, profile = profile, onBack = { showExpansionHub = false })
     } else {
+        BoxWithConstraints(Modifier.fillMaxSize()) {
+        val wide = maxWidth >= 600.dp
         Scaffold(
             bottomBar = {
-                NavigationBar {
+                if (!wide) NavigationBar {
                     MainTab.entries.forEach { tab ->
                         NavigationBarItem(
                             selected = pagerState.currentPage == tab.ordinal,
@@ -262,10 +276,17 @@ private fun MotionFuelRoot(
                 }
             },
         ) { padding ->
+            Row(Modifier.fillMaxSize().padding(padding)) {
+            if (wide) NavigationRail {
+                MainTab.entries.forEach { tab -> NavigationRailItem(
+                    selected = pagerState.currentPage == tab.ordinal,
+                    onClick = { navigationScope.launch { pagerState.animateScrollToPage(tab.ordinal) } },
+                    icon = { Icon(tab.icon, tab.label) }, label = { Text(tab.label) }) }
+            }
             HorizontalPager(
                 state = pagerState,
                 userScrollEnabled = rootSwipeEnabled,
-                modifier = Modifier.fillMaxSize().padding(padding),
+                modifier = Modifier.weight(1f).fillMaxSize(),
                 key = { MainTab.entries[it].name },
             ) { page ->
                 when (MainTab.entries[page]) {
@@ -291,7 +312,7 @@ private fun MotionFuelRoot(
                         workouts = workouts,
                         settings = settings,
                         onStartWorkout = { showStartDialog = true },
-                        onActivitySelected = { selectedWorkout = it },
+                        onActivitySelected = { selectedWorkoutId = it.id },
                         personalRecords = personalRecords,
                     )
                     MainTab.FOOD -> FoodScreen(
@@ -366,6 +387,9 @@ private fun MotionFuelRoot(
                 }
             }
         }
+    }
+
+    }
     }
 
     if (showStartDialog) {

@@ -136,6 +136,8 @@ data class NutritionTotals(
     val fatG: Double = 0.0,
 )
 
+data class WorkoutLap(val distanceMeters: Double, val elapsedSeconds: Long, val automatic: Boolean)
+
 data class WorkoutTelemetry(
     val status: WorkoutStatus = WorkoutStatus.IDLE,
     val type: WorkoutType = WorkoutType.RUN,
@@ -152,6 +154,8 @@ data class WorkoutTelemetry(
     val route: List<GeoPoint> = emptyList(),
     val rejectedGpsPoints: Int = 0,
     val isDemo: Boolean = false,
+    val autoPaused: Boolean = false,
+    val laps: List<WorkoutLap> = emptyList(),
 )
 
 data class WorkoutSummary(

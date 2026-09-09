@@ -20,10 +20,12 @@ jobs:
         run: |
           chmod +x gradlew
           ./gradlew lintDebug
-      - name: Test and assemble
-        run: |
-          chmod +x gradlew
-          ./gradlew testDebugUnitTest assembleDebug assembleRelease
+      - name: JVM tests
+        run: ./gradlew testDebugUnitTest
+      - name: Debug assembly
+        run: ./gradlew assembleDebug
+      - name: Release assembly
+        run: ./gradlew assembleRelease
 
   firestore-rules:
     runs-on: ubuntu-latest
@@ -44,3 +46,24 @@ jobs:
       - name: Test Firebase security rules
         working-directory: firebase-tests
         run: npm test
+
+  device-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Android device tests
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 29
+          arch: x86_64
+          disable-animations: true
+          script: chmod +x gradlew && ./gradlew connectedDebugAndroidTest
