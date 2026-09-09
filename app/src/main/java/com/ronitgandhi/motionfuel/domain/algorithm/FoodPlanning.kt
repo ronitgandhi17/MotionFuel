@@ -14,6 +14,6 @@ object FoodPlanning {
     }
     fun allowed(tags: Set<String>, allergens: Set<String>, diet: String, excluded: Set<String>, verified: Boolean): Boolean {
         if (!verified && (diet != "Any" || excluded.isNotEmpty())) return false
-        return (diet == "Any" || diet in tags) && allergens.intersect(excluded).isEmpty()
+        return (diet == "Any" || diet in tags || (diet == "Vegetarian" && "Vegan" in tags)) && allergens.intersect(excluded).isEmpty()
     }
 }

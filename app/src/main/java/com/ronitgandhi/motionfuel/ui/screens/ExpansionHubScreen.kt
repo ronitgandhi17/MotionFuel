@@ -44,6 +44,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -88,7 +89,7 @@ private enum class ExpansionSection(val label: String) { FOOD("Food"), TRAINING(
 fun ExpansionHubScreen(viewModel: MotionFuelViewModel, profile: UserProfile, onBack: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    var showEverydayTools by remember { mutableStateOf(false) }
+    var showEverydayTools by rememberSaveable { mutableStateOf(false) }
     if (showEverydayTools) {
         EverydayToolsScreen(viewModel, profile) { showEverydayTools = false }
         return

@@ -4120,7 +4120,7 @@ The assessed MVP is technically deep without depending on an unnecessary authent
 | Dietary/allergy filters | Food → Dietary filters; select diet/allergens and confirm saved-food metadata. | Vegetarian, vegan, halal and listed allergens. Active restrictions exclude foods without confirmed metadata. Ingredient/possible-contamination tags filter displayed meal suggestions. App does not certify products or guarantee absence of allergens. |
 | Training load | Training → Training load. | Compare seven-day duration/type effort with the prior three-week weekly average. Disclose heuristic and insufficient baseline. No injury-risk diagnosis or measured physiological fatigue claim. |
 | Privacy centre | Privacy tab and existing Profile export/deletion actions. | Route upload off by default; separate detailed-route consent and optional ~100 m coordinate rounding. Explicit cloud snapshot deletion. User-triggered confirmed 30/90/365-day local retention. Local retention does not silently delete remote snapshots. Diagnostic consent independently chosen on each device. |
-| Tablet/foldable layouts | Resize or use a large window. | Navigation rail at 600 dp; activity list and detail panes at 840 dp. Smaller windows retain bottom navigation and single-pane details. No direct Wear OS integration. |
+| Tablet/foldable layouts | Resize or use a large window. | Navigation rail at 600 dp; activity and saved-food list/detail panes at 840 dp with saved selected-record IDs. Smaller windows retain bottom navigation and single-pane details. No direct Wear OS integration. |
 | Coach/export report | Training → Share 28-day PDF report. | Paginated PDF with activity totals, recorded-day nutrition averages and weight history. Missing diary days excluded from averages. Private export cache and Android share sheet. |
 | In-app feedback | Feedback tab. | User writes feedback, optionally previews app/Android version attachment, then chooses recipient via share sheet. Nothing is sent automatically. |
 | Crash/performance monitoring | Privacy → diagnostic consent. | Firebase Crashlytics and Performance SDK/plugin integration. Collection disabled by default and on sign-out; opt-in required. No custom account, food, weight or route attributes are sent. Production verification requires a configured Firebase build and physical/emulated-device testing. |
@@ -4132,13 +4132,13 @@ The assessed MVP is technically deep without depending on an unnecessary authent
 - Snapshot upload/download is blocked during an active workout. Claiming local records for a second account is blocked until local data is cleared.
 - Photo URLs in local saved-food records are excluded from snapshots because content grants and private files do not transfer to another phone.
 - Firebase rules must be deployed before cloud sync is usable. Existing avatar rules are preserved; backup objects have distinct owner-only JSON/size/path rules.
-- Account deletion removes the current snapshot and manifest before deleting Authentication identity. Local data deletion clears new account-scoped feature preferences.
+- Account deletion removes all stored backup objects and the current manifest before deleting Authentication identity. Local data deletion clears new account-scoped feature preferences.
 - Cloud storage is encrypted by the provider; end-to-end encryption is not claimed.
 
 ### 35.3 Verification gates
 
 - JVM regression tests: GPX round-trip, route-point import, XXE/DTD rejection, invalid coordinates, non-finite values, bounded input, pause hysteresis, poor accuracy, elevation jitter, battery intervals, grocery aggregation/subtraction and allergy metadata coverage.
 - Firebase emulator tests: verified-owner manifest schema, cross-user and unverified denial, private immutable backups, content type/path/size rejection and owner deletion.
-- Android instrumentation tests: Android XML parser GPX round-trip and malicious-document rejection; pantry UI persistence interaction.
+- Android instrumentation tests: Android XML parser GPX round-trip and malicious-document rejection; pantry UI persistence interaction; saved-food detail state restoration.
 - Android CI must pass lint, JVM tests, debug/release assembly, and Firebase rules. Emulator UI verification is reported separately from JVM success.
 - Physical-device acceptance still covers real GPS auto-pause/resume, battery consumption, sharing apps, fold/unfold state continuity, two-phone snapshot conflicts and Firebase diagnostic delivery.

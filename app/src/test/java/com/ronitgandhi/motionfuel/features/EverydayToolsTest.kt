@@ -70,5 +70,6 @@ class EverydayToolsTest {
         assertFalse(FoodPlanning.allowed(emptySet(), emptySet(), "Any", setOf("Milk"), false))
         assertFalse(FoodPlanning.allowed(setOf("Vegetarian"), setOf("Milk"), "Vegetarian", setOf("Milk"), true))
         assertTrue(FoodPlanning.allowed(setOf("Vegan"), emptySet(), "Vegan", setOf("Milk"), true))
+        assertTrue(FoodPlanning.allowed(setOf("Vegan"), emptySet(), "Vegetarian", emptySet(), true))
     }
 }

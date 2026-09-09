@@ -1,10 +1,14 @@
 package com.ronitgandhi.motionfuel.ui.screens
 
 import android.content.Intent
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -113,7 +117,8 @@ fun FoodScreen(
     var query by remember { mutableStateOf("") }
     var manualDialog by remember { mutableStateOf(false) }
     var selectedMeal by remember { mutableStateOf(MealType.BREAKFAST) }
-    var selectedSavedFood by remember { mutableStateOf<SavedFood?>(null) }
+    var selectedSavedFoodId by rememberSaveable { mutableStateOf<String?>(null) }
+    val selectedSavedFood = savedFoods.firstOrNull { it.id == selectedSavedFoodId }
     var pendingAddFood by remember { mutableStateOf<SavedFood?>(null) }
     var pendingDeleteFood by remember { mutableStateOf<SavedFood?>(null) }
     var pendingDeleteEntry by remember { mutableStateOf<NutritionEntry?>(null) }
@@ -141,9 +146,22 @@ fun FoodScreen(
     val barcodeScanner = remember(context) { GmsBarcodeScanning.getClient(context) }
 
     selectedSavedFood?.let { food ->
+        BackHandler { selectedSavedFoodId = null }
+        BoxWithConstraints(Modifier.fillMaxSize()) {
+            val showFoodList = maxWidth >= 840.dp
+            Row(Modifier.fillMaxSize()) {
+                if (showFoodList) LazyColumn(Modifier.weight(0.4f), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    item { Text("My saved foods", style = MaterialTheme.typography.titleLarge) }
+                    items(savedFoods, key = { it.id }) { saved ->
+                        Card(Modifier.fillMaxWidth().clickable(enabled = !sharingFood) { selectedSavedFoodId = saved.id; foodShareError = null }) {
+                            Column(Modifier.padding(16.dp)) { Text(saved.name, fontWeight = FontWeight.Bold); Text("${saved.caloriesKcal.toInt()} kcal") }
+                        }
+                    }
+                }
+                Box(Modifier.weight(0.6f)) {
         SavedFoodDetailScreen(
             food = food,
-            onBack = { selectedSavedFood = null },
+            onBack = { selectedSavedFoodId = null },
             onAdd = { meal ->
                 selectedMeal = meal
                 onAddSavedFood(food, meal)
@@ -163,6 +181,9 @@ fun FoodScreen(
                 }
             },
         )
+                }
+            }
+        }
         return
     }
     LazyColumn(
@@ -253,7 +274,7 @@ fun FoodScreen(
             items(savedFoods, key = { "saved-${it.id}" }) { food ->
                 SavedFoodCard(
                     food = food,
-                    onOpen = { selectedSavedFood = food },
+                    onOpen = { selectedSavedFoodId = food.id },
                     onAdd = { onAddSavedFood(food, selectedMeal) },
                     onRequestAdd = { pendingAddFood = food },
                     onRequestDelete = { pendingDeleteFood = food },
