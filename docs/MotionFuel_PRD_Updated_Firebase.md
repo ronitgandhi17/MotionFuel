@@ -4,7 +4,7 @@
 **Primary stack:** Kotlin, Android Studio, Jetpack Compose, Material Design 3, Firebase Authentication, Cloud Firestore, Firebase Storage, Room, DataStore, Health Connect, Google Play Services Barcode Scanner, Google Maps SDK for Android
 **Target platform:** Android 10+ (API 29+) for the university build, with graceful feature degradation when optional sensors are unavailable  
 **Architecture:** Feature-oriented Clean Architecture + MVVM  
-**Document status:** Version 4.1 — everyday tools, interoperability and recovery revision, September 2026
+**Document status:** Version 4.2 — widget reliability and responsive-profile revision, September 2026
 
 ---
 
@@ -15,6 +15,8 @@ This revision keeps MotionFuel realistic for a one-student Android build and rep
 The most important product and architecture changes are:
 
 - Fifteen further additions are available through Everyday tools and the tracking UI. Their implemented scope, limits and verification gates are defined in section 35 below.
+
+- The Android widget now contains valid initial values before its first data refresh, republishes fresh `RemoteViews` after an APK replacement, clamps invalid negative counters, and is covered by an on-device launcher-inflation test. Profile settings cards, including Goals, always occupy the same available content width.
 
 - Fourteen additional capabilities are introduced through a Smart Planning hub: macro-aware meal recommendations, on-device nutrition-label OCR, recipes with serving scaling, scheduled workouts, locally generated route plans, expiring live safety shares, pace/heart-rate zones, cautious progress projections, opt-in challenges and leaderboards, personal-best celebration cards, context-aware reminders, offline route previews, data-source attribution, and English/Hindi accessible-display preferences.
 - Direct Wear OS pairing, device discovery and workout-command messaging have been removed. Health Connect remains the only optional platform bridge for supported health records.
@@ -4142,3 +4144,11 @@ The assessed MVP is technically deep without depending on an unnecessary authent
 - Android instrumentation tests: Android XML parser GPX round-trip and malicious-document rejection; pantry UI persistence interaction; saved-food detail state restoration.
 - Android CI must pass lint, JVM tests, debug/release assembly, and Firebase rules. Emulator UI verification is reported separately from JVM success.
 - Physical-device acceptance still covers real GPS auto-pause/resume, battery consumption, sharing apps, fold/unfold state continuity, two-phone snapshot conflicts and Firebase diagnostic delivery.
+
+## 36. Widget and profile layout reliability (v4.2)
+
+- The widget's initial XML displays zero-value calorie, step and hydration content so a launcher never receives an empty initial state.
+- Adding the widget, publishing new daily data, and replacing/updating the APK all issue a fresh `RemoteViews` update for every active widget ID.
+- Widget counters are clamped to zero before persistence and its tap action opens MotionFuel through an immutable `PendingIntent`.
+- An Android instrumentation test inflates and populates the exact `RemoteViews` layout used by the launcher and verifies all three visible values.
+- Goals, Privacy & cloud, Display, and other profile settings cards use the full width available inside the profile list on phones, tablets and foldables.

@@ -1,6 +1,12 @@
 <resources>
     <string name="app_name">MotionFuel</string>
     <string name="widget_description">Calories, steps and hydration at a glance</string>
+    <string name="widget_calories">%1$d kcal left</string>
+    <string name="widget_steps">%1$d steps</string>
+    <string name="widget_water">%1$d ml water</string>
+    <string name="widget_calories_default">0 kcal left</string>
+    <string name="widget_steps_default">0 steps</string>
+    <string name="widget_water_default">0 ml water</string>
     <string name="smart_planning">Smart planning</string>
     <string name="smart_planning_subtitle">Food, training, community and data tools</string>
     <string name="switch_language">Switch English / हिन्दी</string>

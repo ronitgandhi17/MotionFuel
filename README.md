@@ -22,7 +22,7 @@ Cloud sync is an explicit, versioned whole-copy workflow with conflict confirmat
 - Recovery readiness score with factors and non-medical training guidance.
 - Tomorrow meal planning from saved foods, individual removal and copy-to-today.
 - Editable workout/step/water goals with progress, streaks and achievements.
-- Android home-screen widget for remaining calories, steps and water.
+- Android home-screen widget for remaining calories, steps and water, with safe default content and automatic refresh after app updates.
 - Complete local JSON data export and confirmed recent-login account deletion.
 - Shareable seven-day insight report with consistency, workout, nutrition and weight trends.
 - Firebase Authentication email/password login, registration, password reset, mandatory verification gate and persisted sessions.
