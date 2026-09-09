@@ -69,9 +69,23 @@ class AdvancedFeaturesConfigurationTest {
     @Test
     fun widgetReceiverIsNarrowlyScoped() {
         val manifest = appFile("AndroidManifest.xml")
+        val provider = appFile("java/com/ronitgandhi/motionfuel/widget/MotionFuelWidgetProvider.kt")
+        val layout = appFile("res/layout/motionfuel_widget.xml")
         assertTrue(manifest.contains(".widget.MotionFuelWidgetProvider"))
         assertTrue(manifest.contains("android.appwidget.action.APPWIDGET_UPDATE"))
+        assertTrue(manifest.contains("android.intent.action.MY_PACKAGE_REPLACED"))
         assertFalse(manifest.contains("android:exported=\"true\" android:permission=\"\""))
+        assertTrue(provider.contains("createRemoteViews"))
+        assertTrue(provider.contains("Intent.ACTION_MY_PACKAGE_REPLACED"))
+        assertTrue(layout.contains("@string/widget_calories_default"))
+    }
+
+    @Test
+    fun profileSettingsCardsAlwaysUseTheAvailableWidth() {
+        val dashboard = appFile("java/com/ronitgandhi/motionfuel/ui/screens/DashboardScreens.kt")
+        val settingsCard = dashboard.substringAfter("private fun SettingsCard").substringBefore("private fun SettingToggle")
+        assertTrue(settingsCard.contains("modifier = Modifier.fillMaxWidth()"))
+        assertTrue(settingsCard.contains("Column(Modifier.fillMaxWidth().padding(16.dp)"))
     }
 
     @Test
