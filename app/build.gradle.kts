@@ -11,13 +11,13 @@ plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.plugin.compose")
     id("com.google.devtools.ksp")
-    id("com.google.firebase.crashlytics")
     id("com.google.firebase.firebase-perf")
 }
 
 // Applies Firebase resource generation only after the developer adds app/google-services.json.
 if (file("google-services.json").exists()) {
     apply(plugin = "com.google.gms.google-services")
+    apply(plugin = "com.google.firebase.crashlytics")
 }
 
 android {
