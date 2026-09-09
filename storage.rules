@@ -7,7 +7,7 @@ service firebase.storage {
 
     match /backups/{uid}/{fileName} {
       allow read, delete: if signedInAs(uid) && request.auth.token.email_verified == true;
-      allow create: if signedInAs(uid) && request.auth.token.email_verified == true
+      allow create: if resource == null && signedInAs(uid) && request.auth.token.email_verified == true
         && fileName.matches('[a-f0-9-]{36}[.]json')
         && request.resource.size <= 10 * 1024 * 1024
         && request.resource.contentType == 'application/json';

@@ -245,8 +245,9 @@ private fun MotionFuelRoot(
         )
     } else if (selectedWorkout != null) {
         BoxWithConstraints(Modifier.fillMaxSize()) {
+            val showActivityList = maxWidth >= 840.dp
             Row(Modifier.fillMaxSize()) {
-                if (maxWidth >= 840.dp) Box(Modifier.weight(0.4f)) {
+                if (showActivityList) Box(Modifier.weight(0.4f)) {
                     ActivityScreen(workouts, settings, onStartWorkout = { selectedWorkout = null; showStartDialog = true }, onActivitySelected = { selectedWorkout = it }, personalRecords = personalRecords)
                 }
                 Box(Modifier.weight(0.6f)) {

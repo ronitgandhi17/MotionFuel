@@ -28,14 +28,27 @@ object CoachReport {
         lines += ""; lines += "Logged values and estimates; not a clinical assessment."
         val dir = File(context.cacheDir, "exports").apply { mkdirs() }
         val file = File(dir, "progress-${System.currentTimeMillis()}.pdf")
-        PdfDocument().use { document ->
-            lines.chunked(38).forEachIndexed { index, pageLines ->
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { textSize = 12f }
+        val wrapped = lines.flatMap { line ->
+            val pieces = mutableListOf<String>()
+            var remaining = line
+            do {
+                val count = paint.breakText(remaining, true, 523f, null).coerceAtLeast(1).coerceAtMost(remaining.length)
+                pieces += remaining.take(count)
+                remaining = remaining.drop(count)
+            } while (remaining.isNotEmpty())
+            pieces
+        }
+        val document = PdfDocument()
+        try {
+            wrapped.chunked(38).forEachIndexed { index, pageLines ->
                 val page = document.startPage(PdfDocument.PageInfo.Builder(595, 842, index + 1).create())
-                val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { textSize = 12f }
                 pageLines.forEachIndexed { row, line -> page.canvas.drawText(line, 36f, 48f + row * 19f, paint) }
                 document.finishPage(page)
             }
             file.outputStream().use(document::writeTo)
+        } finally {
+            document.close()
         }
         return Intent(Intent.ACTION_SEND).setType("application/pdf")
             .putExtra(Intent.EXTRA_STREAM, FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file))

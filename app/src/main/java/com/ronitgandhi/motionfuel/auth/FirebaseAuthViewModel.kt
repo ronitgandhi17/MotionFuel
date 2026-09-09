@@ -305,8 +305,8 @@ class FirebaseAuthViewModel(application: Application) : AndroidViewModel(applica
                 }
                 val userDocument = requireNotNull(firestore).collection("users").document(uid)
                 val syncDocument = userDocument.collection("sync").document("current")
-                val backupVersion = syncDocument.get().await().getString("version")
-                if (backupVersion != null) com.google.firebase.storage.FirebaseStorage.getInstance().reference.child("backups/$uid/$backupVersion.json").delete().await()
+                val backupObjects = com.google.firebase.storage.FirebaseStorage.getInstance().reference.child("backups/$uid").listAll().await()
+                backupObjects.items.forEach { it.delete().await() }
                 syncDocument.delete().await()
                 val weightDocuments = userDocument.collection("weightEntries").get().await()
                 weightDocuments.documents.chunked(400).forEach { group ->
