@@ -20,10 +20,12 @@ jobs:
         run: |
           chmod +x gradlew
           ./gradlew lintDebug
-      - name: Test and assemble
-        run: |
-          chmod +x gradlew
-          ./gradlew testDebugUnitTest assembleDebug assembleRelease
+      - name: JVM tests
+        run: ./gradlew testDebugUnitTest
+      - name: Debug assembly
+        run: ./gradlew assembleDebug
+      - name: Release assembly
+        run: ./gradlew assembleRelease
 
   firestore-rules:
     runs-on: ubuntu-latest
